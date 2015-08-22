@@ -187,7 +187,7 @@ impl<R: Read> Iterator for LexIter<R> {
             } else if let Some(len) = self.tokens.integerlit.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
                 return Some(TokenKind::IntegerLit(
-                    lexutils::parse_integer(self.read_buffer(len)).unwrap()));
+                    lexutils::parse_integer(self.read_buffer(len))));
             } else {
                 return None;
             }

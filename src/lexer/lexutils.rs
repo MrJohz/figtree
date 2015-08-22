@@ -1,6 +1,5 @@
 use super::Token;
 use std::char;
-use std::num::ParseIntError;
 
 pub struct TokenCollection {
     pub open_brace: Token,
@@ -106,19 +105,19 @@ pub fn parse_string(inp: String) -> String {
     }).collect()
 }
 
-pub fn parse_integer(inp: String) -> Result<i64, ParseIntError> {
+pub fn parse_integer(inp: String) -> i64 {
     if inp.starts_with("0d") || inp.starts_with("0D") {
-        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 10)
+        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 10).unwrap()
     } else if inp.starts_with("0x") || inp.starts_with("0X") {
-        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 16)
+        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 16).unwrap()
     } else if inp.starts_with("0o") || inp.starts_with("0O") {
-        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 8)
+        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 8).unwrap()
     } else if inp.starts_with("0b") || inp.starts_with("0B") {
-        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 2)
+        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 2).unwrap()
     } else if inp.starts_with("+") {
-        i64::from_str_radix(&inp.chars().skip(1).collect::<String>(), 10)
+        i64::from_str_radix(&inp.chars().skip(1).collect::<String>(), 10).unwrap()
     } else {
-        i64::from_str_radix(&inp, 10)
+        i64::from_str_radix(&inp, 10).unwrap()
     }
 }
 
@@ -141,17 +140,17 @@ mod tests {
 
     #[test]
     fn test_parse_integer() {
-        assert_eq!(parse_integer("0d5".to_string()), Ok(5));
-        assert_eq!(parse_integer("0D5474".to_string()), Ok(5474));
-        assert_eq!(parse_integer("0x4f3".to_string()), Ok(0x4f3));
-        assert_eq!(parse_integer("0X7Df31".to_string()), Ok(0x7df31));
-        assert_eq!(parse_integer("0o443".to_string()), Ok(3 + (8*4) + (64*4)));
-        assert_eq!(parse_integer("0O70131".to_string()), Ok(28761));
-        assert_eq!(parse_integer("0b01101".to_string()), Ok(0b01101));
-        assert_eq!(parse_integer("0B10010".to_string()), Ok(0b10010));
-        assert_eq!(parse_integer("32353".to_string()), Ok(32353));
-        assert_eq!(parse_integer("-1234".to_string()), Ok(-1234));
-        assert_eq!(parse_integer("+4321".to_string()), Ok(4321));
+        assert_eq!(parse_integer("0d5".to_string()), 5);
+        assert_eq!(parse_integer("0D5474".to_string()), 5474);
+        assert_eq!(parse_integer("0x4f3".to_string()), 0x4f3);
+        assert_eq!(parse_integer("0X7Df31".to_string()), 0x7df31);
+        assert_eq!(parse_integer("0o443".to_string()), 3 + (8*4) + (64*4));
+        assert_eq!(parse_integer("0O70131".to_string()), 28761);
+        assert_eq!(parse_integer("0b01101".to_string()), 0b01101);
+        assert_eq!(parse_integer("0B10010".to_string()), 0b10010);
+        assert_eq!(parse_integer("32353".to_string()), 32353);
+        assert_eq!(parse_integer("-1234".to_string()), -1234);
+        assert_eq!(parse_integer("+4321".to_string()), 4321);
     }
 
     #[test]
