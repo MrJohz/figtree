@@ -10,7 +10,7 @@ pub enum LexError {
     IOError(io::Error)
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Position { pub line: usize, pub pos: usize, }
 impl Position {
     pub fn new() -> Self {
@@ -19,6 +19,9 @@ impl Position {
     pub fn new_line(&mut self) {
         self.line += 1;
         self.pos = 0;
+    }
+    pub fn push(&mut self, amt: usize) {
+        self.pos += amt;
     }
 }
 
@@ -94,8 +97,21 @@ pub struct LexIter<R: Read> {
 
 impl<R: Read> LexIter<R> {
     fn read_buffer(&mut self, len: usize) -> String {
+        let mut position = self.position.clone();
         let response = self.buffer.chars().take(len).collect();
-        self.buffer = self.buffer.chars().skip(len).collect();
+        self.buffer = self.buffer
+            .chars()
+            .skip(len)
+            .map(|c| {
+                if c == '\n' {
+                    position.new_line();
+                } else {
+                    position.push(1);
+                }
+                c
+            } )
+            .collect();
+        self.position = position;
         return response;
     }
     fn can_read(&self, len: usize) -> bool {
@@ -141,12 +157,37 @@ impl<R: Read> Iterator for LexIter<R> {
                 if self.can_read(len) { continue 'mainloop; }
                 self.read_buffer(len);
                 return Some(TokenKind::CloseBrace);
+            } else if let Some(len) = self.tokens.open_bracket.get_match(&self.buffer) {
+                if self.can_read(len) { continue 'mainloop; }
+                self.read_buffer(len);
+                return Some(TokenKind::OpenBracket);
+            } else if let Some(len) = self.tokens.close_bracket.get_match(&self.buffer) {
+                if self.can_read(len) { continue 'mainloop; }
+                self.read_buffer(len);
+                return Some(TokenKind::CloseBracket);
+            } else if let Some(len) = self.tokens.comma.get_match(&self.buffer) {
+                if self.can_read(len) { continue 'mainloop; }
+                self.read_buffer(len);
+                return Some(TokenKind::Comma);
+            } else if let Some(len) = self.tokens.colon.get_match(&self.buffer) {
+                if self.can_read(len) { continue 'mainloop; }
+                self.read_buffer(len);
+                return Some(TokenKind::Colon);
             } else if let Some(len) = self.tokens.identifier.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
                 return Some(TokenKind::Identifier(self.read_buffer(len)));
             } else if let Some(len) = self.tokens.stringlit.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                return Some(TokenKind::StringLit(self.read_buffer(len)));
+                return Some(TokenKind::StringLit(
+                    lexutils::parse_string(self.read_buffer(len))));
+            } else if let Some(len) = self.tokens.floatlit.get_match(&self.buffer) {
+                if self.can_read(len) { continue 'mainloop; }
+                return Some(TokenKind::FloatLit(
+                    lexutils::parse_float(self.read_buffer(len))));
+            } else if let Some(len) = self.tokens.integerlit.get_match(&self.buffer) {
+                if self.can_read(len) { continue 'mainloop; }
+                return Some(TokenKind::IntegerLit(
+                    lexutils::parse_integer(self.read_buffer(len)).unwrap()));
             } else {
                 return None;
             }
@@ -191,7 +232,7 @@ mod tests {
             assert_eq!(iter.next(), None);
         }
 
-        //#[test]
+        #[test]
         fn lex_all_tokens() {
             let file = Cursor::new("ident {}[],: 'string' 54 3.5e5 false".as_bytes());
             let mut iter = Lexer::new().lex(file);

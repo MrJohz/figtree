@@ -1,4 +1,6 @@
 use super::Token;
+use std::char;
+use std::num::ParseIntError;
 
 pub struct TokenCollection {
     pub open_brace: Token,
@@ -31,14 +33,17 @@ impl TokenCollection {
                 \w* # all word characters
             "#).unwrap(),
             stringlit: Token::new(r#"(?x)
-                  "(?: [^"\n\\] | \\. )*"
-                | '(?: [^'\n\\] | \\. )*'
+                  "(?: [^"\n\\] | \\n | \\r | \\t | \\\\ | \\b
+                    | \\f | \\/ | \\" | \\' | \\u[0-9a-fA-F]{4} )*"
+                | '(?: [^'\n\\] | \\n | \\r | \\t | \\\\ | \\b
+                    | \\f | \\/ | \\" | \\' | \\u[0-9a-fA-F]{4} )*'
             "#).unwrap(),
             integerlit: Token::new(r#"(?x)
                   0[xX][0-9a-fA-F_]+
                 | 0[oO][0-8_]+
+                | 0[bB][10_]+
                 | 0[dD][\d_]+
-                | [\d_]+
+                | [+-]?[\d_]+
             "#).unwrap(),
             floatlit: Token::new(r#"(?x)
                 [-+]? # optional sign
@@ -56,9 +61,98 @@ impl TokenCollection {
     }
 }
 
+pub fn parse_string(inp: String) -> String {
+    let mut escaped = false;
+    let mut unicode = false;
+    let mut uindex = 0;
+    let mut uvalue = 0;
+    let quote_char = inp.chars().next().expect("parse_string is parsing an empty string");
+    inp.chars().filter_map(|character| {
+        if escaped {
+            escaped = false;
+            match character {
+                'n' => Some('\n'),
+                'r' => Some('\r'),
+                't' => Some('\t'),
+                'b' => Some('\x08'),
+                'f' => Some('\x0c'),
+                'u' => { unicode = true; uvalue = 0; uindex = 0; None }
+                 _  => Some(character),
+            }
+        } else if unicode {
+            // code adapted from https://github.com/rust-lang/rustc-serialize/blob/master/src/json.rs#L1608-L1624
+            // original licensed under MIT/Apache-2.0
+            uvalue = match character {
+                ctr @ '0'...'9' => uvalue * 16 + ((ctr as u16) - ('0' as u16)),
+                ctr @ 'a'...'f' => uvalue * 16 + (10 + (ctr as u16) - ('a' as u16)),
+                ctr @ 'A'...'F' => uvalue * 16 + (10 + (ctr as u16) - ('A' as u16)),
+                _ => return None,
+            };
+            if uindex < 3 {
+                uindex += 1;
+                None
+            } else {
+                unicode = false;
+                char::from_u32(uvalue as u32)
+            }
+        } else if character == quote_char {
+            None
+        } else if character == '\\' {
+            escaped = true;
+            None
+        } else {
+            Some(character)
+        }
+    }).collect()
+}
+
+pub fn parse_integer(inp: String) -> Result<i64, ParseIntError> {
+    if inp.starts_with("0d") || inp.starts_with("0D") {
+        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 10)
+    } else if inp.starts_with("0x") || inp.starts_with("0X") {
+        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 16)
+    } else if inp.starts_with("0o") || inp.starts_with("0O") {
+        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 8)
+    } else if inp.starts_with("0b") || inp.starts_with("0B") {
+        i64::from_str_radix(&inp.chars().skip(2).collect::<String>(), 2)
+    } else if inp.starts_with("+") {
+        i64::from_str_radix(&inp.chars().skip(1).collect::<String>(), 10)
+    } else {
+        i64::from_str_radix(&inp, 10)
+    }
+}
+
+pub fn parse_float(inp: String) -> f64 {
+    inp.parse().unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_string() {
+        assert_eq!(parse_string("'hello'".to_string()), "hello");
+        assert_eq!(parse_string(r#""hello""#.to_string()), "hello");
+        assert_eq!(parse_string("'he\\nllo'".to_string()), "he\nllo");
+        assert_eq!(parse_string(r#"'he"llo'"#.to_string()), "he\"llo");
+        assert_eq!(parse_string(r"'\u0058'".to_string()), "\u{0058}");
+    }
+
+    #[test]
+    fn test_parse_integer() {
+        assert_eq!(parse_integer("0d5".to_string()), Ok(5));
+        assert_eq!(parse_integer("0D5474".to_string()), Ok(5474));
+        assert_eq!(parse_integer("0x4f3".to_string()), Ok(0x4f3));
+        assert_eq!(parse_integer("0X7Df31".to_string()), Ok(0x7df31));
+        assert_eq!(parse_integer("0o443".to_string()), Ok(3 + (8*4) + (64*4)));
+        assert_eq!(parse_integer("0O70131".to_string()), Ok(28761));
+        assert_eq!(parse_integer("0b01101".to_string()), Ok(0b01101));
+        assert_eq!(parse_integer("0B10010".to_string()), Ok(0b10010));
+        assert_eq!(parse_integer("32353".to_string()), Ok(32353));
+        assert_eq!(parse_integer("-1234".to_string()), Ok(-1234));
+        assert_eq!(parse_integer("+4321".to_string()), Ok(4321));
+    }
 
     #[test]
     fn literals_match() {
