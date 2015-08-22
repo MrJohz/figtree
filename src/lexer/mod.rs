@@ -26,7 +26,7 @@ impl Position {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum TokenKind {
+pub enum LexToken {
     OpenBrace, CloseBrace,
     OpenBracket, CloseBracket,
     Comma, Colon,
@@ -107,7 +107,7 @@ impl<R: Read> Lexer<R> {
 }
 
 impl<R: Read> Iterator for Lexer<R> {
-    type Item = TokenKind;
+    type Item = LexToken;
 
     fn next(&mut self) -> Option<Self::Item> {
         'mainloop: loop {
@@ -139,41 +139,41 @@ impl<R: Read> Iterator for Lexer<R> {
             if let Some(len) = self.tokens.open_brace.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
                 self.read_buffer(len);
-                return Some(TokenKind::OpenBrace);
+                return Some(LexToken::OpenBrace);
             } else if let Some(len) = self.tokens.close_brace.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
                 self.read_buffer(len);
-                return Some(TokenKind::CloseBrace);
+                return Some(LexToken::CloseBrace);
             } else if let Some(len) = self.tokens.open_bracket.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
                 self.read_buffer(len);
-                return Some(TokenKind::OpenBracket);
+                return Some(LexToken::OpenBracket);
             } else if let Some(len) = self.tokens.close_bracket.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
                 self.read_buffer(len);
-                return Some(TokenKind::CloseBracket);
+                return Some(LexToken::CloseBracket);
             } else if let Some(len) = self.tokens.comma.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
                 self.read_buffer(len);
-                return Some(TokenKind::Comma);
+                return Some(LexToken::Comma);
             } else if let Some(len) = self.tokens.colon.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
                 self.read_buffer(len);
-                return Some(TokenKind::Colon);
+                return Some(LexToken::Colon);
             } else if let Some(len) = self.tokens.identifier.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                return Some(TokenKind::Identifier(self.read_buffer(len)));
+                return Some(LexToken::Identifier(self.read_buffer(len)));
             } else if let Some(len) = self.tokens.stringlit.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                return Some(TokenKind::StringLit(
+                return Some(LexToken::StringLit(
                     lexutils::parse_string(self.read_buffer(len))));
             } else if let Some(len) = self.tokens.floatlit.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                return Some(TokenKind::FloatLit(
+                return Some(LexToken::FloatLit(
                     lexutils::parse_float(self.read_buffer(len))));
             } else if let Some(len) = self.tokens.integerlit.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                return Some(TokenKind::IntegerLit(
+                return Some(LexToken::IntegerLit(
                     lexutils::parse_integer(self.read_buffer(len))));
             } else {
                 return None;
@@ -212,9 +212,9 @@ mod tests {
         fn test_lex_iterable() {
             let file = Cursor::new("hello {}".as_bytes());
             let mut iter = Lexer::lex(file);
-            assert_eq!(iter.next(), Some(TokenKind::Identifier("hello".to_string())));
-            assert_eq!(iter.next(), Some(TokenKind::OpenBrace));
-            assert_eq!(iter.next(), Some(TokenKind::CloseBrace));
+            assert_eq!(iter.next(), Some(LexToken::Identifier("hello".to_string())));
+            assert_eq!(iter.next(), Some(LexToken::OpenBrace));
+            assert_eq!(iter.next(), Some(LexToken::CloseBrace));
             assert_eq!(iter.next(), None);
         }
 
@@ -222,17 +222,17 @@ mod tests {
         fn lex_all_tokens() {
             let file = Cursor::new("ident {}[],: 'string' 54 3.5e5 false".as_bytes());
             let mut iter = Lexer::lex(file);
-            assert_eq!(iter.next(), Some(TokenKind::Identifier("ident".to_string())));
-            assert_eq!(iter.next(), Some(TokenKind::OpenBrace));
-            assert_eq!(iter.next(), Some(TokenKind::CloseBrace));
-            assert_eq!(iter.next(), Some(TokenKind::OpenBracket));
-            assert_eq!(iter.next(), Some(TokenKind::CloseBracket));
-            assert_eq!(iter.next(), Some(TokenKind::Comma));
-            assert_eq!(iter.next(), Some(TokenKind::Colon));
-            assert_eq!(iter.next(), Some(TokenKind::StringLit("string".to_string())));
-            assert_eq!(iter.next(), Some(TokenKind::IntegerLit(54)));
-            assert_eq!(iter.next(), Some(TokenKind::FloatLit(3.5e5_f64)));
-            assert_eq!(iter.next(), Some(TokenKind::Identifier("false".to_string())));
+            assert_eq!(iter.next(), Some(LexToken::Identifier("ident".to_string())));
+            assert_eq!(iter.next(), Some(LexToken::OpenBrace));
+            assert_eq!(iter.next(), Some(LexToken::CloseBrace));
+            assert_eq!(iter.next(), Some(LexToken::OpenBracket));
+            assert_eq!(iter.next(), Some(LexToken::CloseBracket));
+            assert_eq!(iter.next(), Some(LexToken::Comma));
+            assert_eq!(iter.next(), Some(LexToken::Colon));
+            assert_eq!(iter.next(), Some(LexToken::StringLit("string".to_string())));
+            assert_eq!(iter.next(), Some(LexToken::IntegerLit(54)));
+            assert_eq!(iter.next(), Some(LexToken::FloatLit(3.5e5_f64)));
+            assert_eq!(iter.next(), Some(LexToken::Identifier("false".to_string())));
             assert_eq!(iter.next(), None);
         }
     }
