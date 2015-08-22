@@ -57,35 +57,7 @@ impl Token {
     }
 }
 
-pub struct Lexer {
-    ignore: Vec<Token>,
-    tokens: TokenCollection,
-}
-
-impl Lexer {
-    pub fn new() -> Self {
-        Lexer {
-            ignore: vec![
-                Token::new(r"\s*").unwrap()
-            ],
-            tokens: TokenCollection::new(),
-        }
-    }
-
-    pub fn lex<R>(self, file: R) -> LexIter<R> where R: Read {
-        LexIter {
-            filestream: BufReader::new(file),
-            buffer: String::new(),
-            position: Position::new(),
-            ignore: self.ignore,
-            tokens: self.tokens,
-            errors: Vec::new(),
-            read_to_end: false,
-        }
-    }
-}
-
-pub struct LexIter<R: Read> {
+pub struct Lexer<R: Read> {
     filestream: BufReader<R>,
     buffer: String,
     position: Position,
@@ -95,7 +67,22 @@ pub struct LexIter<R: Read> {
     read_to_end: bool,
 }
 
-impl<R: Read> LexIter<R> {
+impl<R: Read> Lexer<R> {
+
+    pub fn lex(file: R) -> Self {
+        Lexer {
+            filestream: BufReader::new(file),
+            buffer: String::new(),
+            position: Position::new(),
+            errors: Vec::new(),
+            read_to_end: false,
+            ignore: vec![
+                Token::new(r"\s*").unwrap()
+            ],
+            tokens: TokenCollection::new(),
+        }
+    }
+
     fn read_buffer(&mut self, len: usize) -> String {
         let mut position = self.position.clone();
         let response = self.buffer.chars().take(len).collect();
@@ -119,7 +106,7 @@ impl<R: Read> LexIter<R> {
     }
 }
 
-impl<R: Read> Iterator for LexIter<R> {
+impl<R: Read> Iterator for Lexer<R> {
     type Item = TokenKind;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -224,8 +211,7 @@ mod tests {
         #[test]
         fn test_lex_iterable() {
             let file = Cursor::new("hello {}".as_bytes());
-            let lexer = Lexer::new();
-            let mut iter = lexer.lex(file);
+            let mut iter = Lexer::lex(file);
             assert_eq!(iter.next(), Some(TokenKind::Identifier("hello".to_string())));
             assert_eq!(iter.next(), Some(TokenKind::OpenBrace));
             assert_eq!(iter.next(), Some(TokenKind::CloseBrace));
@@ -235,7 +221,7 @@ mod tests {
         #[test]
         fn lex_all_tokens() {
             let file = Cursor::new("ident {}[],: 'string' 54 3.5e5 false".as_bytes());
-            let mut iter = Lexer::new().lex(file);
+            let mut iter = Lexer::lex(file);
             assert_eq!(iter.next(), Some(TokenKind::Identifier("ident".to_string())));
             assert_eq!(iter.next(), Some(TokenKind::OpenBrace));
             assert_eq!(iter.next(), Some(TokenKind::CloseBrace));
