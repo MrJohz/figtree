@@ -122,7 +122,11 @@ pub fn parse_integer(inp: String) -> i64 {
 }
 
 pub fn parse_float(inp: String) -> f64 {
-    inp.parse().unwrap()
+    if inp.starts_with("+") {
+        inp.chars().skip(1).collect::<String>().parse().unwrap()
+    } else {
+       inp.parse().unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -155,16 +159,27 @@ mod tests {
 
     #[test]
     fn test_parse_float() {
+        println!("run");
         assert_eq!(parse_float("+1.2".to_string()), 1.2);
+        println!("run");
         assert_eq!(parse_float("-1.2".to_string()), -1.2);
+        println!("run");
         assert_eq!(parse_float("3.4".to_string()), 3.4);
+        println!("run");
         assert_eq!(parse_float("3.".to_string()), 3.0);
+        println!("run");
         assert_eq!(parse_float(".2".to_string()), 0.2);
+        println!("run");
         assert_eq!(parse_float("1.2e2".to_string()), 1.2E+2);
+        println!("run");
         assert_eq!(parse_float("1.2e+2".to_string()), 1.2E+2);
+        println!("run");
         assert_eq!(parse_float("1.2e-2".to_string()), 1.2E-2);
+        println!("run");
         assert_eq!(parse_float("1.2E2".to_string()), 1.2E+2);
+        println!("run");
         assert_eq!(parse_float("1.2E+2".to_string()), 1.2E+2);
+        println!("run");
         assert_eq!(parse_float("1.2E-2".to_string()), 1.2E-2);
     }
 
