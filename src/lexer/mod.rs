@@ -34,7 +34,8 @@ pub enum LexToken {
 
 #[derive(Debug)]
 pub enum LexError {
-    IOError(io::Error)
+    IOError(io::Error),
+    UnrecognisedCharError(char),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -177,7 +178,7 @@ impl<R: Read> Iterator for Lexer<R> {
                     lexutils::parse_integer(self.consume_buffer(len)))));
             } else {
                 if self.read_to_end {
-                    return None;
+                    return Some(Err(LexError::UnrecognisedCharError(self.buffer.chars().next().unwrap())));
                 } else {
                     continue 'mainloop;
                 }
@@ -275,6 +276,23 @@ mod tests {
             assert_eq!(iter.next().unwrap().unwrap(),
                 LexToken::Identifier("false".to_string()));
             assert!(iter.next().is_none());
+        }
+
+        #[test]
+        fn test_errors() {
+            let file = Cursor::new("ident | <-- invalid character".as_bytes());
+            let mut iter = Lexer::lex(file);
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::Identifier("ident".to_string()));
+            if let Err(error) = iter.next().unwrap() {
+                if let LexError::UnrecognisedCharError(character) = error {
+                    assert_eq!(character, '|');
+                } else {
+                    panic!("Should raise UnrecognisedCharError");
+                }
+            } else {
+                panic!("Should raise an error");
+            }
         }
     }
 }
