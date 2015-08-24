@@ -6,10 +6,6 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::io;
 
-pub enum LexError {
-    IOError(io::Error)
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Position { pub line: usize, pub pos: usize, }
 impl Position {
@@ -25,7 +21,7 @@ impl Position {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LexToken {
     OpenBrace, CloseBrace,
     OpenBracket, CloseBracket,
@@ -34,6 +30,11 @@ pub enum LexToken {
     StringLit(String),
     IntegerLit(i64),
     FloatLit(f64),
+}
+
+#[derive(Debug)]
+pub enum LexError {
+    IOError(io::Error)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -63,7 +64,7 @@ pub struct Lexer<R: Read> {
     position: Position,
     ignore: Vec<Token>,
     tokens: TokenCollection,
-    errors: Vec<LexError>,
+    errored: bool,
     read_to_end: bool,
 }
 
@@ -74,7 +75,7 @@ impl<R: Read> Lexer<R> {
             filestream: BufReader::new(file),
             buffer: String::new(),
             position: Position::new(),
-            errors: Vec::new(),
+            errored: false,
             read_to_end: false,
             ignore: vec![
                 Token::new(r"\s*").unwrap()
@@ -83,7 +84,7 @@ impl<R: Read> Lexer<R> {
         }
     }
 
-    fn read_buffer(&mut self, len: usize) -> String {
+    fn consume_buffer(&mut self, len: usize) -> String {
         let mut position = self.position.clone();
         let response = self.buffer.chars().take(len).collect();
         self.buffer = self.buffer
@@ -107,7 +108,7 @@ impl<R: Read> Lexer<R> {
 }
 
 impl<R: Read> Iterator for Lexer<R> {
-    type Item = LexToken;
+    type Item = Result<LexToken, LexError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         'mainloop: loop {
@@ -122,8 +123,7 @@ impl<R: Read> Iterator for Lexer<R> {
                     }
                 },
                 Err(err) => {
-                    self.errors.push(LexError::IOError(err));
-                    return None;
+                    return Some(Err(LexError::IOError(err)));
                 }
             }
 
@@ -138,45 +138,49 @@ impl<R: Read> Iterator for Lexer<R> {
 
             if let Some(len) = self.tokens.open_brace.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                self.read_buffer(len);
-                return Some(LexToken::OpenBrace);
+                self.consume_buffer(len);
+                return Some(Ok(LexToken::OpenBrace));
             } else if let Some(len) = self.tokens.close_brace.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                self.read_buffer(len);
-                return Some(LexToken::CloseBrace);
+                self.consume_buffer(len);
+                return Some(Ok(LexToken::CloseBrace));
             } else if let Some(len) = self.tokens.open_bracket.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                self.read_buffer(len);
-                return Some(LexToken::OpenBracket);
+                self.consume_buffer(len);
+                return Some(Ok(LexToken::OpenBracket));
             } else if let Some(len) = self.tokens.close_bracket.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                self.read_buffer(len);
-                return Some(LexToken::CloseBracket);
+                self.consume_buffer(len);
+                return Some(Ok(LexToken::CloseBracket));
             } else if let Some(len) = self.tokens.comma.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                self.read_buffer(len);
-                return Some(LexToken::Comma);
+                self.consume_buffer(len);
+                return Some(Ok(LexToken::Comma));
             } else if let Some(len) = self.tokens.colon.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                self.read_buffer(len);
-                return Some(LexToken::Colon);
+                self.consume_buffer(len);
+                return Some(Ok(LexToken::Colon));
             } else if let Some(len) = self.tokens.identifier.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                return Some(LexToken::Identifier(self.read_buffer(len)));
+                return Some(Ok(LexToken::Identifier(self.consume_buffer(len))));
             } else if let Some(len) = self.tokens.stringlit.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                return Some(LexToken::StringLit(
-                    lexutils::parse_string(self.read_buffer(len))));
+                return Some(Ok(LexToken::StringLit(
+                    lexutils::parse_string(self.consume_buffer(len)))));
             } else if let Some(len) = self.tokens.floatlit.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                return Some(LexToken::FloatLit(
-                    lexutils::parse_float(self.read_buffer(len))));
+                return Some(Ok(LexToken::FloatLit(
+                    lexutils::parse_float(self.consume_buffer(len)))));
             } else if let Some(len) = self.tokens.integerlit.get_match(&self.buffer) {
                 if self.can_read(len) { continue 'mainloop; }
-                return Some(LexToken::IntegerLit(
-                    lexutils::parse_integer(self.read_buffer(len))));
+                return Some(Ok(LexToken::IntegerLit(
+                    lexutils::parse_integer(self.consume_buffer(len)))));
             } else {
-                return None;
+                if self.read_to_end {
+                    return None;
+                } else {
+                    continue 'mainloop;
+                }
             }
         }
     }
@@ -212,28 +216,65 @@ mod tests {
         fn test_lex_iterable() {
             let file = Cursor::new("hello {}".as_bytes());
             let mut iter = Lexer::lex(file);
-            assert_eq!(iter.next(), Some(LexToken::Identifier("hello".to_string())));
-            assert_eq!(iter.next(), Some(LexToken::OpenBrace));
-            assert_eq!(iter.next(), Some(LexToken::CloseBrace));
-            assert_eq!(iter.next(), None);
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::Identifier("hello".to_string()));
+            assert_eq!(iter.next().unwrap().unwrap(), LexToken::OpenBrace);
+            assert_eq!(iter.next().unwrap().unwrap(), LexToken::CloseBrace);
+            assert!(iter.next().is_none());
+        }
+
+        #[test] #[ignore] // Comments not yet implemented
+        fn lex_ignored_tokens() {
+            let file = Cursor::new(
+                "
+                token1
+                // hello
+                token2
+                /* one line */
+                token3
+                /* multiple
+                token4
+                 * lines */
+                 token5".as_bytes());
+            let mut iter = Lexer::lex(file);
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::Identifier("token1".to_string()));
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::Identifier("token2".to_string()));
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::Identifier("token3".to_string()));
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::Identifier("token5".to_string()));
+            assert!(iter.next().is_none());
         }
 
         #[test]
         fn lex_all_tokens() {
             let file = Cursor::new("ident {}[],: 'string' 54 3.5e5 false".as_bytes());
             let mut iter = Lexer::lex(file);
-            assert_eq!(iter.next(), Some(LexToken::Identifier("ident".to_string())));
-            assert_eq!(iter.next(), Some(LexToken::OpenBrace));
-            assert_eq!(iter.next(), Some(LexToken::CloseBrace));
-            assert_eq!(iter.next(), Some(LexToken::OpenBracket));
-            assert_eq!(iter.next(), Some(LexToken::CloseBracket));
-            assert_eq!(iter.next(), Some(LexToken::Comma));
-            assert_eq!(iter.next(), Some(LexToken::Colon));
-            assert_eq!(iter.next(), Some(LexToken::StringLit("string".to_string())));
-            assert_eq!(iter.next(), Some(LexToken::IntegerLit(54)));
-            assert_eq!(iter.next(), Some(LexToken::FloatLit(3.5e5_f64)));
-            assert_eq!(iter.next(), Some(LexToken::Identifier("false".to_string())));
-            assert_eq!(iter.next(), None);
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::Identifier("ident".to_string()));
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::OpenBrace);
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::CloseBrace);
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::OpenBracket);
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::CloseBracket);
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::Comma);
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::Colon);
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::StringLit("string".to_string()));
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::IntegerLit(54));
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::FloatLit(3.5e5_f64));
+            assert_eq!(iter.next().unwrap().unwrap(),
+                LexToken::Identifier("false".to_string()));
+            assert!(iter.next().is_none());
         }
     }
 }

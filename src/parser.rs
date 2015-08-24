@@ -1,4 +1,4 @@
-use super::lexer::{Lexer, LexToken};
+use super::lexer::{Lexer, LexToken, LexError};
 use std::io::prelude::*;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -8,9 +8,10 @@ pub enum ParseEvent {
     EndOfFile,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug)]
 pub enum ParseError {
     InvalidState,
+    LexError(LexError),
 }
 
 pub type ParseResult = Result<ParseEvent, ParseError>;
@@ -18,7 +19,6 @@ pub type ParseResult = Result<ParseEvent, ParseError>;
 pub struct Parser<R: Read> {
     current_state: Option<ParseEvent>,
     next_token: Option<LexToken>,
-    pub last_error: Option<ParseError>,
     lexer: Lexer<R>,
 }
 
@@ -27,20 +27,25 @@ impl<R: Read> Parser<R> {
         Parser {
             current_state: None,
             next_token: None,
-            last_error: None,
             lexer: lexer,
         }
     }
 
     fn yield_state(&mut self, state: ParseEvent) -> Option<ParseResult> {
         self.current_state = Some(state);
-        self.next_token = self.lexer.next();
-        Some(Ok(state))
+        if let Some(token) = self.lexer.next() {
+            match token {
+                Ok(token) => { self.next_token = Some(token); },
+                Err(err) => { return Some(Err(ParseError::LexError(err))); }
+            }
+        } else {
+            self.next_token = None;
+        }
+        Some(Ok(self.current_state.unwrap()))
     }
     fn yield_error(&mut self, error: ParseError) -> Option<ParseResult> {
 
         self.current_state = Some(ParseEvent::ERR);
-        self.last_error = Some(error);
         Some(Err(error))
     }
 }
@@ -75,9 +80,8 @@ mod tests {
     fn handle_empty_file() {
         let file = Cursor::new("".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next(), Some(Ok(ParseEvent::BeginFile)));
-        assert_eq!(parser.next(), Some(Ok(ParseEvent::EndOfFile)));
-        assert_eq!(parser.next(), None);
-        assert_eq!(parser.last_error, None);
+        assert_eq!(parser.next().unwrap().unwrap(), ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap(), ParseEvent::EndOfFile);
+        assert!(parser.next().is_none());
     }
 }
