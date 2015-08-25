@@ -103,8 +103,14 @@ impl<R: Read> Lexer<R> {
         self.position = position;
         return response;
     }
+
     fn can_read(&self, len: usize) -> bool {
         return len == self.buffer.len() && !self.read_to_end;
+    }
+
+    fn make_err(&mut self, err: LexError) -> Option<Result<LexToken, LexError>> {
+        self.errored = true;
+        Some(Err(err))
     }
 }
 
@@ -113,6 +119,10 @@ impl<R: Read> Iterator for Lexer<R> {
 
     fn next(&mut self) -> Option<Self::Item> {
         'mainloop: loop {
+            if self.errored {
+                return None;
+            }
+
             match self.filestream.read_line(&mut self.buffer) {
                 Ok(size) => {
                     if size == 0 {
@@ -178,7 +188,8 @@ impl<R: Read> Iterator for Lexer<R> {
                     lexutils::parse_integer(self.consume_buffer(len)))));
             } else {
                 if self.read_to_end {
-                    return Some(Err(LexError::UnrecognisedCharError(self.buffer.chars().next().unwrap())));
+                    let ch = self.buffer.chars().next().unwrap();
+                    return self.make_err(LexError::UnrecognisedCharError(ch));
                 } else {
                     continue 'mainloop;
                 }
@@ -293,6 +304,7 @@ mod tests {
             } else {
                 panic!("Should raise an error");
             }
+            assert!(iter.next().is_none());
         }
     }
 }
