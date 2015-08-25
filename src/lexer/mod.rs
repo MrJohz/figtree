@@ -1,25 +1,16 @@
-extern crate regex;
-mod lexutils;
-
-use self::lexutils::TokenCollection;
 use std::io::prelude::*;
-use std::io::BufReader;
 use std::io;
+use super::utils::CharReader;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Position { pub line: usize, pub pos: usize, }
-impl Position {
-    pub fn new() -> Self {
-        Position { line: 0, pos: 0 }
-    }
-    pub fn new_line(&mut self) {
-        self.line += 1;
-        self.pos = 0;
-    }
-    pub fn push(&mut self, amt: usize) {
-        self.pos += amt;
-    }
-}
+const DECIMAL_NUMERIC: [char; 11] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '_'];
+const OCTAL_NUMERIC: [char; 9] = ['0', '1', '2', '3', '4', '5', '6', '7', '_'];
+const BINARY_NUMERIC: [char; 3] = ['0', '1', '_'];
+const HEXA_NUMERIC: [char; 22] =
+    ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '_',
+     'a', 'b', 'c', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F'];
+
+type LexReader<R: Read> = CharReader<io::BufReader<R>>;
+type LexResult = Result<LexToken, LexError>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LexToken {
@@ -38,79 +29,85 @@ pub enum LexError {
     UnrecognisedCharError(char),
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct Token {
-    pattern: regex::Regex,
-}
-
-impl Token {
-    fn new(re: &str) -> Result<Self, regex::Error> {
-        Ok(Token {
-            pattern: try!(regex::Regex::new(&("^(?:".to_string() + re + ")"))),
-        })
-    }
-
-    fn get_match(&self, inp: &str) -> Option<usize> {
-        if let Some((_, end)) = self.pattern.find(inp) {
-            Some(end)
-        } else {
-            None
-        }
-    }
-}
-
 pub struct Lexer<R: Read> {
-    filestream: BufReader<R>,
-    buffer: String,
-    position: Position,
-    ignore: Vec<Token>,
-    tokens: TokenCollection,
-    errored: bool,
-    read_to_end: bool,
+    input: LexReader<R>,
+    stored_next: Option<char>,
 }
 
 impl<R: Read> Lexer<R> {
-
-    pub fn lex(file: R) -> Self {
+    pub fn parse(reader: R) -> Self {
         Lexer {
-            filestream: BufReader::new(file),
-            buffer: String::new(),
-            position: Position::new(),
-            errored: false,
-            read_to_end: false,
-            ignore: vec![
-                Token::new(r"\s*").unwrap()
-            ],
-            tokens: TokenCollection::new(),
+            input: CharReader::new(io::BufReader::new(reader)),
+            stored_next: None,
         }
     }
 
-    fn consume_buffer(&mut self, len: usize) -> String {
-        let mut position = self.position.clone();
-        let response = self.buffer.chars().take(len).collect();
-        self.buffer = self.buffer
-            .chars()
-            .skip(len)
-            .map(|c| {
-                if c == '\n' {
-                    position.new_line();
-                } else {
-                    position.push(1);
-                }
-                c
-            } )
-            .collect();
-        self.position = position;
-        return response;
+    pub fn pop_next(&mut self) -> Option<char> {
+        if let Some(next) = self.stored_next {
+            self.stored_next = None;
+            Some(next)
+        } else {
+            self.input.next()
+        }
     }
 
-    fn can_read(&self, len: usize) -> bool {
-        return len == self.buffer.len() && !self.read_to_end;
+    pub fn ret_next(&mut self, returned: char) {
+        self.stored_next = Some(returned);
     }
 
-    fn make_err(&mut self, err: LexError) -> Option<Result<LexToken, LexError>> {
-        self.errored = true;
-        Some(Err(err))
+    pub fn parse_ident(&mut self, next_char: char) -> Option<LexResult> {
+        let mut ident = String::new();
+        ident.push(next_char);
+
+        while let Some(next_char) = self.pop_next() {
+            if next_char.is_alphanumeric() {
+                ident.push(next_char);
+            } else {
+                self.ret_next(next_char);
+                break;
+            }
+        }
+
+        Some(Ok(LexToken::Identifier(ident)))
+    }
+
+    pub fn parse_int(&mut self, base: u32) -> Option<LexResult> {
+        let mut buffer = String::new();
+
+        while let Some(next_char) = self.pop_next() {
+            if next_char.is_digit(base) || next_char == '_' {
+                buffer.push(next_char);
+            } else {
+                self.ret_next(next_char);
+                break;
+            }
+        }
+
+        Some(Ok(LexToken::IntegerLit(i64::from_str_radix(&buffer, base).unwrap())))
+    }
+
+    pub fn parse_numeric(&mut self, next_char: char) -> Option<LexResult> {
+        if let Some(after) = self.pop_next() {
+            if next_char == '0' && ['d', 'D'].contains(&after) {
+                self.pop_next(); // discard
+                self.parse_int(10)
+            } else if next_char == '0' && ['x', 'X'].contains(&after)  {
+                self.pop_next(); // discard
+                self.parse_int(16)
+            } else if next_char == '0' && ['o', 'O'].contains(&after) {
+                self.pop_next(); // discard
+                self.parse_int(8)
+            } else if next_char == '0' && ['b', 'B'].contains(&after) {
+                self.pop_next(); // discard
+                self.parse_int(2)
+            } else {
+                // TODO: parse non 0x* numbers
+                self.ret_next(after);
+                None
+            }
+        } else {
+            Some(Ok(LexToken::IntegerLit(next_char.to_digit(10).unwrap() as i64)))
+        }
     }
 }
 
@@ -118,193 +115,21 @@ impl<R: Read> Iterator for Lexer<R> {
     type Item = Result<LexToken, LexError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        'mainloop: loop {
-            if self.errored {
-                return None;
-            }
+        let option_char = self.pop_next();
+        while option_char.is_some() && option_char.unwrap().is_whitespace() {
+            let option_char = self.pop_next();
+        }
 
-            match self.filestream.read_line(&mut self.buffer) {
-                Ok(size) => {
-                    if size == 0 {
-                        self.read_to_end = true;
-                        // read to end of file - but have we finished reading the buffer?
-                        if self.buffer.len() == 0 {
-                            return None;
-                        }
-                    }
-                },
-                Err(err) => {
-                    return Some(Err(LexError::IOError(err)));
-                }
-            }
-
-            self.position.new_line();
-
-            for ign in &self.ignore {
-                if let Some(len) = ign.get_match(&self.buffer) {
-                    if self.can_read(len) { continue 'mainloop; }
-                    self.buffer = self.buffer.chars().skip(len).collect();
-                }
-            }
-
-            if let Some(len) = self.tokens.open_brace.get_match(&self.buffer) {
-                if self.can_read(len) { continue 'mainloop; }
-                self.consume_buffer(len);
-                return Some(Ok(LexToken::OpenBrace));
-            } else if let Some(len) = self.tokens.close_brace.get_match(&self.buffer) {
-                if self.can_read(len) { continue 'mainloop; }
-                self.consume_buffer(len);
-                return Some(Ok(LexToken::CloseBrace));
-            } else if let Some(len) = self.tokens.open_bracket.get_match(&self.buffer) {
-                if self.can_read(len) { continue 'mainloop; }
-                self.consume_buffer(len);
-                return Some(Ok(LexToken::OpenBracket));
-            } else if let Some(len) = self.tokens.close_bracket.get_match(&self.buffer) {
-                if self.can_read(len) { continue 'mainloop; }
-                self.consume_buffer(len);
-                return Some(Ok(LexToken::CloseBracket));
-            } else if let Some(len) = self.tokens.comma.get_match(&self.buffer) {
-                if self.can_read(len) { continue 'mainloop; }
-                self.consume_buffer(len);
-                return Some(Ok(LexToken::Comma));
-            } else if let Some(len) = self.tokens.colon.get_match(&self.buffer) {
-                if self.can_read(len) { continue 'mainloop; }
-                self.consume_buffer(len);
-                return Some(Ok(LexToken::Colon));
-            } else if let Some(len) = self.tokens.identifier.get_match(&self.buffer) {
-                if self.can_read(len) { continue 'mainloop; }
-                return Some(Ok(LexToken::Identifier(self.consume_buffer(len))));
-            } else if let Some(len) = self.tokens.stringlit.get_match(&self.buffer) {
-                if self.can_read(len) { continue 'mainloop; }
-                return Some(Ok(LexToken::StringLit(
-                    lexutils::parse_string(self.consume_buffer(len)))));
-            } else if let Some(len) = self.tokens.floatlit.get_match(&self.buffer) {
-                if self.can_read(len) { continue 'mainloop; }
-                return Some(Ok(LexToken::FloatLit(
-                    lexutils::parse_float(self.consume_buffer(len)))));
-            } else if let Some(len) = self.tokens.integerlit.get_match(&self.buffer) {
-                if self.can_read(len) { continue 'mainloop; }
-                return Some(Ok(LexToken::IntegerLit(
-                    lexutils::parse_integer(self.consume_buffer(len)))));
+        if let Some(next_char) = option_char {
+            if next_char.is_alphabetic() {
+                self.parse_ident(next_char)
+            } else if next_char.is_digit(10) || ['+', '-'].contains(&next_char) {
+                self.parse_numeric(next_char)
             } else {
-                if self.read_to_end {
-                    let ch = self.buffer.chars().next().unwrap();
-                    return self.make_err(LexError::UnrecognisedCharError(ch));
-                } else {
-                    continue 'mainloop;
-                }
+                None
             }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    pub use super::*;
-
-    mod token {
-        use super::*;
-        extern crate regex;
-
-        #[test]
-        fn test_construction() {
-            let tok = Token::new("xyz").unwrap();
-            assert_eq!(tok.pattern, regex::Regex::new("^(?:xyz)").unwrap());
-        }
-
-        #[test]
-        fn test_matching() {
-            let tok = Token::new("xyz").unwrap();
-            assert_eq!(tok.get_match("xyzdjsd"), Some(3));
-            assert_eq!(tok.get_match("abcdjsd"), None);
-        }
-    }
-
-    mod lexer {
-        use super::*;
-        use std::io::Cursor;
-
-        #[test]
-        fn test_lex_iterable() {
-            let file = Cursor::new("hello {}".as_bytes());
-            let mut iter = Lexer::lex(file);
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::Identifier("hello".to_string()));
-            assert_eq!(iter.next().unwrap().unwrap(), LexToken::OpenBrace);
-            assert_eq!(iter.next().unwrap().unwrap(), LexToken::CloseBrace);
-            assert!(iter.next().is_none());
-        }
-
-        #[test] #[ignore] // Comments not yet implemented
-        fn lex_ignored_tokens() {
-            let file = Cursor::new(
-                "
-                token1
-                // hello
-                token2
-                /* one line */
-                token3
-                /* multiple
-                token4
-                 * lines */
-                 token5".as_bytes());
-            let mut iter = Lexer::lex(file);
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::Identifier("token1".to_string()));
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::Identifier("token2".to_string()));
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::Identifier("token3".to_string()));
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::Identifier("token5".to_string()));
-            assert!(iter.next().is_none());
-        }
-
-        #[test]
-        fn lex_all_tokens() {
-            let file = Cursor::new("ident {}[],: 'string' 54 3.5e5 false".as_bytes());
-            let mut iter = Lexer::lex(file);
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::Identifier("ident".to_string()));
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::OpenBrace);
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::CloseBrace);
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::OpenBracket);
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::CloseBracket);
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::Comma);
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::Colon);
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::StringLit("string".to_string()));
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::IntegerLit(54));
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::FloatLit(3.5e5_f64));
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::Identifier("false".to_string()));
-            assert!(iter.next().is_none());
-        }
-
-        #[test]
-        fn test_errors() {
-            let file = Cursor::new("ident | <-- invalid character".as_bytes());
-            let mut iter = Lexer::lex(file);
-            assert_eq!(iter.next().unwrap().unwrap(),
-                LexToken::Identifier("ident".to_string()));
-            if let Err(error) = iter.next().unwrap() {
-                if let LexError::UnrecognisedCharError(character) = error {
-                    assert_eq!(character, '|');
-                } else {
-                    panic!("Should raise UnrecognisedCharError");
-                }
-            } else {
-                panic!("Should raise an error");
-            }
-            assert!(iter.next().is_none());
+        } else {
+            None
         }
     }
 }
