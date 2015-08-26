@@ -233,6 +233,7 @@ impl<R: Read> Iterator for Lexer<R> {
                 self.ret_next(next_char);
                 self.parse_numeric()
             } else {
+                // TODO: Parsing strings
                 None
             }
         } else {
