@@ -1,5 +1,6 @@
 use std::io::prelude::*;
 use std::io;
+use std::char::from_u32;
 use std::str::FromStr;
 
 use super::utils::CharReader;
@@ -20,6 +21,9 @@ pub enum LexToken {
 
 #[derive(Debug)]
 pub enum LexError {
+    UnclosedStringError,
+    InvalidEscape(char),
+    InvalidUnicodeEscape(u32),
     IOError(io::Error),
     FloatParseError(<f64 as FromStr>::Err),
     IntegerParseError(<i64 as FromStr>::Err),
@@ -29,6 +33,7 @@ pub enum LexError {
 pub struct Lexer<R: Read> {
     input: LexReader<R>,
     stored_next: Vec<char>,
+    errored: bool,
 }
 
 impl<R: Read> Lexer<R> {
@@ -36,10 +41,16 @@ impl<R: Read> Lexer<R> {
         Lexer {
             input: CharReader::new(io::BufReader::new(reader)),
             stored_next: Vec::new(),
+            errored: false,
         }
     }
 
-    pub fn pop_next(&mut self) -> Option<char> {
+    fn err(&mut self, err: LexError) -> Option<LexResult> {
+        self.errored = true;
+        Some(Err(err))
+    }
+
+    fn pop_next(&mut self) -> Option<char> {
         if let Some(next) = self.stored_next.pop() {
             Some(next)
         } else {
@@ -47,11 +58,11 @@ impl<R: Read> Lexer<R> {
         }
     }
 
-    pub fn ret_next(&mut self, returned: char) {
+    fn ret_next(&mut self, returned: char) {
         self.stored_next.push(returned);
     }
 
-    pub fn parse_ident(&mut self) -> Option<LexResult> {
+    fn parse_ident(&mut self) -> Option<LexResult> {
         if let Some(next_char) = self.pop_next() {
             let mut ident = String::new();
             if next_char.is_alphabetic() {
@@ -78,7 +89,7 @@ impl<R: Read> Lexer<R> {
         }
     }
 
-    pub fn parse_int(&mut self, base: u32) -> Option<LexResult> {
+    fn parse_int(&mut self, base: u32) -> Option<LexResult> {
         let mut buffer = String::new();
 
         while let Some(next_char) = self.pop_next() {
@@ -95,7 +106,7 @@ impl<R: Read> Lexer<R> {
         Some(Ok(LexToken::IntegerLit(i64::from_str_radix(&buffer, base).unwrap())))
     }
 
-    pub fn parse_exponent(&mut self) -> String {
+    fn parse_exponent(&mut self) -> String {
         let mut exponent = String::from("e");
         if let Some(next_char) = self.pop_next() {
             if next_char == '+' || next_char == '-' {
@@ -117,7 +128,7 @@ impl<R: Read> Lexer<R> {
         exponent
     }
 
-    pub fn parse_float_int(&mut self) -> Option<LexResult> {
+    fn parse_float_int(&mut self) -> Option<LexResult> {
         let mut sign = '+';
         let mut is_float = false;
         let mut buffer = String::new();
@@ -179,7 +190,7 @@ impl<R: Read> Lexer<R> {
         }
     }
 
-    pub fn parse_numeric(&mut self) -> Option<LexResult> {
+    fn parse_numeric(&mut self) -> Option<LexResult> {
         if let Some(next_char) = self.pop_next() {
             if let Some(after) = self.pop_next() {
                 if next_char == '0' && ['d', 'D'].contains(&after) {
@@ -200,6 +211,75 @@ impl<R: Read> Lexer<R> {
             }
         } else {
             None
+        }
+    }
+
+    fn parse_string(&mut self) -> Option<LexResult> {
+        let mut buffer = String::new();
+        let mut quote_closed = false;
+        let quote_char = match self.pop_next() {
+            Some(c) => c,
+            None => { return None; },
+        };
+
+        while let Some(next_char) = self.pop_next() {
+            if next_char == '\\' {
+                // escape next character
+                match self.pop_next() {
+                    Some('/') => { buffer.push('/'); },
+                    Some('n') => { buffer.push('\n'); },
+                    Some('r') => { buffer.push('\r'); },
+                    Some('t') => { buffer.push('\t'); },
+                    Some('\\') => { buffer.push('\\'); },
+                    Some('\"') => { buffer.push('\"'); },
+                    Some('\'') => { buffer.push('\''); },
+                    Some('b') => { buffer.push('\x08'); },
+                    Some('f') => { buffer.push('\x0c'); },
+                    Some('u') => {
+                        let mut uvalue = 0;
+                        for _ in 0..4 {
+                            if let Some(ch) = self.pop_next() {
+                                uvalue = match ch {
+                                    '0'...'9' =>
+                                        uvalue * 16 + ((ch as u16) - ('0' as u16)),
+                                    'a'...'f' =>
+                                        uvalue * 16 + (10 + (ch as u16) - ('a' as u16)),
+                                    'A'...'F' =>
+                                        uvalue * 16 + (10 + (ch as u16) - ('A' as u16)),
+                                    _ => {
+                                        return self.err(LexError::InvalidUnicodeEscape(uvalue as u32));
+                                    },
+                                };
+                            } else {
+                                return self.err(LexError::UnclosedStringError);
+                            }
+                        }
+
+                        if let Some(next_char) = from_u32(uvalue as u32) {
+                            buffer.push(next_char);
+                        } else {
+                            return self.err(LexError::InvalidUnicodeEscape(uvalue as u32));
+                        }
+                    },
+                    Some(c) => {
+                        return self.err(LexError::InvalidEscape(c));
+                    },
+                    None => {
+                        return self.err(LexError::UnclosedStringError);
+                    },
+                }
+            } else if next_char == quote_char {
+                quote_closed = true;
+                break;
+            } else {
+                buffer.push(next_char);
+            }
+        }
+
+        if quote_closed {
+            Some(Ok(LexToken::StringLit(buffer)))
+        } else {
+            self.err(LexError::UnclosedStringError)
         }
     }
 }
@@ -232,8 +312,11 @@ impl<R: Read> Iterator for Lexer<R> {
             } else if next_char.is_digit(10) || ['+', '-', '.'].contains(&next_char) {
                 self.ret_next(next_char);
                 self.parse_numeric()
+            } else if next_char == '\"' || next_char == '\'' {
+                self.ret_next(next_char);
+                self.parse_string()
             } else {
-                // TODO: Parsing strings
+                // TODO: Error out here
                 None
             }
         } else {
@@ -330,5 +413,35 @@ mod tests {
         let mut lexer = Lexer::lex(Cursor::new("1_0__5___".as_bytes()));
         assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
             LexToken::IntegerLit(105));
+    }
+
+    #[test]
+    fn parse_string() {
+        let mut lexer = Lexer::lex(Cursor::new("'string'".as_bytes()));
+        assert_eq!(lexer.parse_string().unwrap().unwrap(),
+            LexToken::StringLit("string".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("\"string\"".as_bytes()));
+        assert_eq!(lexer.parse_string().unwrap().unwrap(),
+            LexToken::StringLit("string".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("\"s\\ntring\"".as_bytes()));
+        assert_eq!(lexer.parse_string().unwrap().unwrap(),
+            LexToken::StringLit("s\ntring".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("'stri\\\\ng'".as_bytes()));
+        assert_eq!(lexer.parse_string().unwrap().unwrap(),
+            LexToken::StringLit("stri\\ng".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("'str\\'ing'".as_bytes()));
+        assert_eq!(lexer.parse_string().unwrap().unwrap(),
+            LexToken::StringLit("str'ing".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("'string".as_bytes()));
+        match lexer.parse_string().unwrap() {
+            Ok(_) => panic!("should raise error"),
+            Err(LexError::UnclosedStringError) => assert!(true),
+            Err(_) => panic!("wrong error raised"),
+        }
     }
 }
