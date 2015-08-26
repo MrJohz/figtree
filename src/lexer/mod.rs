@@ -331,6 +331,28 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
+    fn iterator() {
+        let cursor = Cursor::new("ident { } [ ] : , 34 3.5 'str' true".as_bytes());
+        let mut lexer = Lexer::lex(cursor);
+        assert_eq!(lexer.next().unwrap().unwrap(),
+            LexToken::Identifier("ident".to_string()));
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBrace);
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBrace);
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBracket);
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBracket);
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Colon);
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Comma);
+        assert_eq!(lexer.next().unwrap().unwrap(),
+            LexToken::IntegerLit(34));
+        assert_eq!(lexer.next().unwrap().unwrap(),
+            LexToken::FloatLit(3.5));
+        assert_eq!(lexer.next().unwrap().unwrap(),
+            LexToken::StringLit("str".to_string()));
+        assert_eq!(lexer.next().unwrap().unwrap(),
+            LexToken::Identifier("true".to_string()));
+    }
+
+    #[test]
     fn parse_ident() {
         let mut lexer = Lexer::lex(Cursor::new("ThisIsAnIdent".as_bytes()));
         assert_eq!(lexer.parse_ident().unwrap().unwrap(),
