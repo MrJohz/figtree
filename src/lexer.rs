@@ -354,18 +354,27 @@ mod tests {
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBrace);
         assert_eq!(lexer.position, Position::at(0, 7));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBrace);
+        assert_eq!(lexer.position, Position::at(0, 9));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBracket);
+        assert_eq!(lexer.position, Position::at(0, 11));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBracket);
+        assert_eq!(lexer.position, Position::at(0, 13));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Colon);
+        assert_eq!(lexer.position, Position::at(0, 15));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Comma);
+        assert_eq!(lexer.position, Position::at(0, 17));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::IntegerLit(34));
+        assert_eq!(lexer.position, Position::at(0, 20));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::FloatLit(3.5));
+        assert_eq!(lexer.position, Position::at(0, 24));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::StringLit("str".to_string()));
+        assert_eq!(lexer.position, Position::at(0, 30));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("true".to_string()));
+        assert_eq!(lexer.position, Position::at(0, 35));
     }
 
     #[test]
