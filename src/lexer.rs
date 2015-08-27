@@ -3,7 +3,8 @@ use std::io;
 use std::char::from_u32;
 use std::str::FromStr;
 
-use super::utils::CharReader;
+use utils::CharReader;
+use position::Position;
 
 type LexReader<R: Read> = CharReader<io::BufReader<R>>;
 type LexResult = Result<LexToken, LexError>;
@@ -32,6 +33,7 @@ pub enum LexError {
 
 pub struct Lexer<R: Read> {
     input: LexReader<R>,
+    position: Position,
     stored_next: Vec<char>,
     errored: bool,
 }
@@ -40,6 +42,7 @@ impl<R: Read> Lexer<R> {
     pub fn lex(reader: R) -> Self {
         Lexer {
             input: CharReader::new(io::BufReader::new(reader)),
+            position: Position::new(),
             stored_next: Vec::new(),
             errored: false,
         }
@@ -51,14 +54,24 @@ impl<R: Read> Lexer<R> {
     }
 
     fn pop_next(&mut self) -> Option<char> {
-        if let Some(next) = self.stored_next.pop() {
+        if let Some(next) =
+            if let Some(next) = self.stored_next.pop() { Some(next) }
+            else { self.input.next() } {
+
+            if next == '\n' {
+                self.position.new_line();
+            } else {
+                self.position.push(1);
+            }
+
             Some(next)
         } else {
-            self.input.next()
+            None
         }
     }
 
     fn ret_next(&mut self, returned: char) {
+        self.position.unpush(1);
         self.stored_next.push(returned);
     }
 
@@ -328,6 +341,7 @@ impl<R: Read> Iterator for Lexer<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::position::Position;
     use std::io::Cursor;
 
     #[test]
@@ -336,7 +350,9 @@ mod tests {
         let mut lexer = Lexer::lex(cursor);
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("ident".to_string()));
+        assert_eq!(lexer.position, Position::at(0, 5));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBrace);
+        assert_eq!(lexer.position, Position::at(0, 7));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBrace);
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBracket);
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBracket);
