@@ -33,7 +33,7 @@ pub enum LexError {
 
 pub struct Lexer<R: Read> {
     input: LexReader<R>,
-    position: Position,
+    pub position: Position,
     stored_next: Vec<char>,
     errored: bool,
 }

@@ -156,3 +156,11 @@ configuration files.
     simple line-by-line parsers.  In particular, dictionary literals may not contain
     newlines.  Figtree laughs at this madness, and allows you to put whitespace
     everywhere, or nowhere.
+
+
+## TODO:
+- Internal parser
+- External API
+- Comments (`//`, `/*nested*/`) (lexed & optionally parsed)
+- Raw stringlits (`/|[(%$#` chars)
+- Interpolation (for strings, numbers, booleans)
