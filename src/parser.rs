@@ -22,7 +22,7 @@ pub enum ParseError {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseContext {
     Basefile,
-    Node
+    Node(bool)
 }
 
 type ContextStack = Vec<ParseContext>;
@@ -53,7 +53,7 @@ impl<R: Read> Parser<R> {
             let next = self.lexer.next();
             match next {
                 Some(Ok(LexToken::OpenBrace)) => {
-                    self.context.push(ParseContext::Node);
+                    self.context.push(ParseContext::Node(true));
                     self.yield_state(ParseEvent::NodeStart(ident))
                 }
                 Some(Ok(tok)) =>
@@ -68,7 +68,6 @@ impl<R: Read> Parser<R> {
         } else if let Some(Err(next)) = next {
             self.lex_error(next)
         } else {
-            assert_eq!(self.context.pop(), Some(ParseContext::Basefile));
             self.ended = true;
             self.yield_state(ParseEvent::EndOfFile)
         }
@@ -78,7 +77,7 @@ impl<R: Read> Parser<R> {
         let next = self.lexer.next();
         match next {
             Some(Ok(LexToken::CloseBrace)) => {
-                assert_eq!(self.context.pop(), Some(ParseContext::Node));
+                self.context.pop();
                 self.yield_state(ParseEvent::NodeEnd)
             },
             Some(Ok(tok)) => {
@@ -91,6 +90,11 @@ impl<R: Read> Parser<R> {
                 self.yield_error(ParseError::UnexpectedEndOfFile)
             }
         }
+    }
+
+    fn parse_context_node_no_comma(&mut self) -> Option<ParseResult> {
+        let next = self.lexer.next();
+        None
     }
 
     fn yield_state(&mut self, state: ParseEvent) -> Option<ParseResult> {
@@ -110,6 +114,7 @@ impl<R: Read> Iterator for Parser<R> {
         if self.ended { return None; }
 
         let current_state = self.context.pop();
+        println!("state: {:?}", current_state);
         match current_state {
             None => {
                 self.context.push(ParseContext::Basefile);
@@ -119,9 +124,13 @@ impl<R: Read> Iterator for Parser<R> {
                 self.context.push(current_state.unwrap());
                 self.parse_context_file()
             },
-            Some(ParseContext::Node) => {
+            Some(ParseContext::Node(true)) => {
                 self.context.push(current_state.unwrap());
                 self.parse_context_node()
+            },
+            Some(ParseContext::Node(false)) => {
+                self.context.push(current_state.unwrap());
+                self.parse_context_node_no_comma()
             }
         }
     }
