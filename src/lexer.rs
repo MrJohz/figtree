@@ -13,7 +13,7 @@ type LexResult = Result<LexToken, LexError>;
 pub enum LexToken {
     OpenBrace, CloseBrace,
     OpenBracket, CloseBracket,
-    Comma, Colon,
+    Comma, Colon, Bang,
     Identifier(String),
     StringLit(String),
     IntegerLit(i64),
@@ -317,6 +317,8 @@ impl<R: Read> Iterator for Lexer<R> {
                 Some(Ok(LexToken::CloseBracket))
             } else if next_char == ',' {
                 Some(Ok(LexToken::Comma))
+            } else if next_char == '!' {
+                Some(Ok(LexToken::Bang))
             } else if next_char == ':' {
                 Some(Ok(LexToken::Colon))
             } else if next_char.is_alphabetic() {
@@ -346,7 +348,7 @@ mod tests {
 
     #[test]
     fn iterator() {
-        let cursor = Cursor::new("ident { } [ ] : , 34 3.5 'str' true".as_bytes());
+        let cursor = Cursor::new("ident { } [ ! ] : , 34 3.5 'str' true".as_bytes());
         let mut lexer = Lexer::lex(cursor);
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("ident".to_string()));
@@ -357,24 +359,26 @@ mod tests {
         assert_eq!(lexer.position, Position::at(0, 9));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBracket);
         assert_eq!(lexer.position, Position::at(0, 11));
-        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBracket);
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Bang);
         assert_eq!(lexer.position, Position::at(0, 13));
-        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Colon);
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBracket);
         assert_eq!(lexer.position, Position::at(0, 15));
-        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Comma);
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Colon);
         assert_eq!(lexer.position, Position::at(0, 17));
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Comma);
+        assert_eq!(lexer.position, Position::at(0, 19));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::IntegerLit(34));
-        assert_eq!(lexer.position, Position::at(0, 20));
+        assert_eq!(lexer.position, Position::at(0, 22));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::FloatLit(3.5));
-        assert_eq!(lexer.position, Position::at(0, 24));
+        assert_eq!(lexer.position, Position::at(0, 26));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::StringLit("str".to_string()));
-        assert_eq!(lexer.position, Position::at(0, 30));
+        assert_eq!(lexer.position, Position::at(0, 32));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("true".to_string()));
-        assert_eq!(lexer.position, Position::at(0, 35));
+        assert_eq!(lexer.position, Position::at(0, 37));
     }
 
     #[test]

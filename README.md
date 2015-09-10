@@ -163,4 +163,6 @@ configuration files.
 - External API
 - Comments (`//`, `/*nested*/`) (lexed & optionally parsed)
 - Raw stringlits (`/|[(%$#` chars)
-- Interpolation (for strings, numbers, booleans)
+- Idents - raw idents (using backticks), use swift's rules for idents
+- Identifiers as values
+- Interpolation - reference nodes?
