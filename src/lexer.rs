@@ -504,6 +504,10 @@ mod tests {
         assert_eq!(lexer.parse_string().unwrap().unwrap(),
             LexToken::StringLit("s\ntring".to_string()));
 
+        let mut lexer = Lexer::lex(Cursor::new("'s\ntring'".as_bytes()));
+        assert_eq!(lexer.parse_string().unwrap().unwrap(),
+            LexToken::StringLit("s\ntring".to_string()));
+
         let mut lexer = Lexer::lex(Cursor::new("'stri\\\\ng'".as_bytes()));
         assert_eq!(lexer.parse_string().unwrap().unwrap(),
             LexToken::StringLit("stri\\ng".to_string()));
