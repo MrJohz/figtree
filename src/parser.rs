@@ -69,10 +69,10 @@ impl<R: Read> Parser<R> {
         }
     }
 
-    fn set_comma(&mut self) {
+    fn set_comma(&mut self, state: bool) {
         let pushable = match self.context.pop() {
             None => None,
-            Some(ParseContext::Node(_)) => Some(ParseContext::Node(true)),
+            Some(ParseContext::Node(_)) => Some(ParseContext::Node(state)),
             Some(ctx) => Some(ctx),
         };
 
@@ -115,7 +115,7 @@ impl<R: Read> Parser<R> {
                 self.yield_state(ParseEvent::NodeEnd)
             },
             Some(Ok(LexToken::Identifier(ident))) => {
-                self.set_comma();
+                self.set_comma(true);
                 match self.lexer.next() {
                     Some(Ok(LexToken::OpenBrace)) => {
                         self.context.push(ParseContext::Node(true));
@@ -133,7 +133,7 @@ impl<R: Read> Parser<R> {
                 if !self.has_comma() {
                     return self.yield_error(ParseError::UnexpectedToken(LexToken::StringLit(key)));
                 }
-
+                self.set_comma(false);
                 match self.lexer.next() {
                     Some(Ok(LexToken::Colon)) => {
                         self.context.push(ParseContext::Value);
@@ -148,7 +148,7 @@ impl<R: Read> Parser<R> {
                 }
             },
             Some(Ok(tok)) => {
-                self.yield_error(ParseError::NotYetImplemented)
+                self.yield_error(ParseError::UnexpectedToken(tok))
             },
             Some(Err(err)) => {
                 self.yield_error(ParseError::LexError(err))
@@ -160,7 +160,7 @@ impl<R: Read> Parser<R> {
     }
 
     fn parse_context_value(&mut self) -> Option<ParseResult> {
-        match self.lexer.next() {
+       let response = match self.lexer.next() {
             None => self.yield_error(ParseError::UnexpectedEndOfFile),
             Some(Err(err)) => self.yield_error(ParseError::LexError(err)),
             Some(Ok(LexToken::StringLit(string))) => {
@@ -218,7 +218,20 @@ impl<R: Read> Parser<R> {
                 }
             },
             Some(Ok(tok)) => self.yield_error(ParseError::UnexpectedToken(tok)),
+        };
+
+        // weird way of doing things, but has_comma() is *false* at the moment.  If
+        // the next token (unconsumed) is a comma, set it to true.  Can't consume that
+        // next token while borrowing self.lexer, so in the next statement, if
+        // has_comma() is *true* (that is, previous if-statement matched), consume it.
+        if let Some(&Ok(LexToken::Comma)) = self.lexer.peek() {
+            self.set_comma(true);
         }
+        if self.has_comma() {
+            self.lexer.next();
+        }
+
+        response
     }
 
     fn yield_state(&mut self, state: ParseEvent) -> Option<ParseResult> {
@@ -365,14 +378,40 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
 
-        let file = Cursor::new("node { 'key': !false }".as_bytes());
+        let file = Cursor::new("node { 'key': !my_ident }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Ident("false".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Ident("my_ident".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert!(parser.next().is_none());
+    }
+
+    #[test]
+    fn requires_comma_between_key_value_pairs() {
+        // with
+        let file = Cursor::new("node { 'key1': true, 'key2': 'val' }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key1".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Bool(true)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key2".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Str("val".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert!(parser.next().is_none());
+
+        // without
+        let file = Cursor::new("node { 'key1': true 'key2': 'val' }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key1".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Bool(true)));
+        assert!(parser.next().unwrap().is_err());
         assert!(parser.next().is_none());
     }
 
