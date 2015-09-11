@@ -36,6 +36,7 @@ pub struct Lexer<R: Read> {
     pub position: Position,
     stored_next: Vec<char>,
     errored: bool,
+    peeked_next: Option<LexResult>,
 }
 
 impl<R: Read> Lexer<R> {
@@ -45,7 +46,16 @@ impl<R: Read> Lexer<R> {
             position: Position::new(),
             stored_next: Vec::new(),
             errored: false,
+            peeked_next: None,
         }
+    }
+
+    pub fn peek(&mut self) -> Option<&LexResult> {
+        if self.peeked_next.is_none() {
+            self.peeked_next = self.next();
+        }
+
+        self.peeked_next.as_ref()
     }
 
     fn err(&mut self, err: LexError) -> Option<LexResult> {
@@ -301,6 +311,10 @@ impl<R: Read> Iterator for Lexer<R> {
     type Item = Result<LexToken, LexError>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.peeked_next.is_some() {
+            return self.peeked_next.take();
+        }
+
         let mut option_char = self.pop_next();
         while option_char.is_some() && option_char.unwrap().is_whitespace() {
             option_char = self.pop_next();
@@ -331,8 +345,7 @@ impl<R: Read> Iterator for Lexer<R> {
                 self.ret_next(next_char);
                 self.parse_string()
             } else {
-                // TODO: Error out here
-                None
+                Some(Err(LexError::UnrecognisedCharError(next_char)))
             }
         } else {
             None
@@ -379,6 +392,17 @@ mod tests {
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("true".to_string()));
         assert_eq!(lexer.position, Position::at(0, 37));
+    }
+
+    #[test]
+    fn parse_unrecognised_char() {
+        let mut lexer = Lexer::lex(Cursor::new("&".as_bytes()));
+        match lexer.next() {
+            None => panic!("Should return some"),
+            Some(Ok(tok)) => panic!(format!("Should return err, returned Ok({:?})", tok)),
+            Some(Err(LexError::UnrecognisedCharError(c))) => assert_eq!(c, '&'),
+            Some(Err(err)) => panic!(format!("Should return char error, returned {:?}", err)),
+        }
     }
 
     #[test]

@@ -1,6 +1,15 @@
 use super::lexer::{Lexer, LexToken, LexError};
 use super::position::Position;
 use std::io::prelude::*;
+use std::iter::Peekable;
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Value {
+    Str(String),
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseEvent {
@@ -8,6 +17,8 @@ pub enum ParseEvent {
     EndOfFile,
     NodeStart(String),
     NodeEnd,
+    NewPair(String),
+    PairedValue(Value),
 }
 
 #[derive(Debug)]
@@ -22,7 +33,8 @@ pub enum ParseError {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseContext {
     Basefile,
-    Node(bool)
+    Node(bool),
+    Value,
 }
 
 type ContextStack = Vec<ParseContext>;
@@ -48,24 +60,19 @@ impl<R: Read> Parser<R> {
     }
 
     fn has_comma(&mut self) -> bool {
-        let ctx = self.context.pop();
-        let has_comma = match ctx {
+        match self.context.last() {
             None => false,
-            Some(ParseContext::Basefile) => false,
-            Some(ParseContext::Node(has_comma)) => has_comma,
-        };
-        if !ctx.is_none() {
-            self.context.push(ctx.unwrap());
+            Some(&ParseContext::Basefile) => false,
+            Some(&ParseContext::Value) => false,
+            Some(&ParseContext::Node(has_comma)) => has_comma,
         }
-
-        has_comma
     }
 
     fn set_comma(&mut self) {
         let pushable = match self.context.pop() {
             None => None,
-            Some(ParseContext::Basefile) => Some(ParseContext::Basefile),
             Some(ParseContext::Node(_)) => Some(ParseContext::Node(true)),
+            Some(ctx) => Some(ctx),
         };
 
         if !pushable.is_none() {
@@ -116,7 +123,25 @@ impl<R: Read> Parser<R> {
                     Some(Ok(tok)) =>
                         self.yield_error(ParseError::UnexpectedToken(tok)),
                     Some(Err(err)) =>
-                        self.yield_error(ParseError::LexError(err)),
+                        self.lex_error(err),
+                    None =>
+                        self.yield_error(ParseError::UnexpectedEndOfFile),
+                }
+            },
+            Some(Ok(LexToken::StringLit(key))) => {
+                if !self.has_comma() {
+                    return self.yield_error(ParseError::UnexpectedToken(LexToken::StringLit(key)));
+                }
+
+                match self.lexer.next() {
+                    Some(Ok(LexToken::Colon)) => {
+                        self.context.push(ParseContext::Value);
+                        self.yield_state(ParseEvent::NewPair(key))
+                    },
+                    Some(Ok(tok)) =>
+                        self.yield_error(ParseError::UnexpectedToken(tok)),
+                    Some(Err(err)) =>
+                        self.lex_error(err),
                     None =>
                         self.yield_error(ParseError::UnexpectedEndOfFile),
                 }
@@ -130,6 +155,37 @@ impl<R: Read> Parser<R> {
             None => {
                 self.yield_error(ParseError::UnexpectedEndOfFile)
             }
+        }
+    }
+
+    fn parse_context_value(&mut self) -> Option<ParseResult> {
+        match self.lexer.next() {
+            None => self.yield_error(ParseError::UnexpectedEndOfFile),
+            Some(Err(err)) => self.yield_error(ParseError::LexError(err)),
+            Some(Ok(LexToken::StringLit(string))) => {
+                let mut val_string = String::new();
+                val_string.push_str(&string);
+                loop {
+                    match self.lexer.peek() {
+                        Some(&Ok(LexToken::StringLit(_))) => {},
+                        _ => { break; }
+                    }
+
+                    match self.lexer.next().unwrap().unwrap() {
+                        LexToken::StringLit(s) => {
+                            val_string.push_str(&s);
+                        },
+                        _ => unreachable!(),
+                    }
+                }
+                self.context.pop();
+                self.yield_state(ParseEvent::PairedValue(Value::Str(val_string)))
+            },
+            Some(Ok(LexToken::IntegerLit(integer))) => {
+                self.context.pop();
+                self.yield_state(ParseEvent::PairedValue(Value::Int(integer)))
+            }
+            _ => None,
         }
     }
 
@@ -163,6 +219,10 @@ impl<R: Read> Iterator for Parser<R> {
                 self.context.push(current_state.unwrap());
                 self.parse_context_node()
             },
+            Some(ParseContext::Value) => {
+                self.context.push(current_state.unwrap());
+                self.parse_context_value()
+            }
         }
     }
 }
@@ -203,5 +263,47 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+
+        // arbitrary depth of stack
+        let file = Cursor::new("node { subnode { sub { sub { sub {} } } } }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("subnode".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("sub".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("sub".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("sub".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+    }
+
+    #[test]
+    fn handle_key_value_pair() {
+        let file = Cursor::new("node { 'key': 'value' }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Str("value".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert!(parser.next().is_none());
+    }
+
+    #[test]
+    fn concats_string_values() {
+        let file = Cursor::new("node { 'key': 'value 1' 'value 2' }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Str("value 1value 2".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert!(parser.next().is_none());
     }
 }
