@@ -21,7 +21,7 @@ pub enum ParseEvent {
     PairedValue(Value),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ParseError {
     LexError(LexError),
     UnexpectedEndOfFile,
@@ -272,7 +272,7 @@ impl<R: Read> Iterator for Parser<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::lexer::Lexer;
+    use super::super::lexer::{Lexer, LexToken};
     use std::io::Cursor;
 
     #[test]
@@ -408,7 +408,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key1".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Bool(true)));
-        assert!(parser.next().unwrap().is_err());
+        assert_eq!(parser.next().unwrap().unwrap_err().0, ParseError::UnexpectedToken(LexToken::StringLit("key2".to_string())));
         assert!(parser.next().is_none());
         let file = Cursor::new("node { 'key1': 'true' 'key2': 'val' }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
@@ -416,7 +416,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key1".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Str("truekey2".to_string())));
-        assert!(parser.next().unwrap().is_err());
+        assert_eq!(parser.next().unwrap().unwrap_err().0, ParseError::UnexpectedToken(LexToken::Colon));
         assert!(parser.next().is_none());
     }
 
