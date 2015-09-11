@@ -20,12 +20,11 @@ pub enum LexToken {
     FloatLit(f64),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LexError {
     UnclosedStringError,
     InvalidEscape(char),
     InvalidUnicodeEscape(u32),
-    IOError(io::Error),
     FloatParseError(<f64 as FromStr>::Err),
     IntegerParseError(<i64 as FromStr>::Err),
     UnrecognisedCharError(char),
