@@ -21,6 +21,8 @@ pub enum ParseEvent {
     Value(Value),
     ListStart,
     ListEnd,
+    DictStart,
+    DictEnd,
 }
 
 #[derive(Debug, PartialEq)]
@@ -36,6 +38,7 @@ pub enum ParseContext {
     Node(bool),
     Value,
     List(bool),
+    Dict(bool),
 }
 
 type ContextStack = Vec<ParseContext>;
@@ -67,6 +70,7 @@ impl<R: Read> Parser<R> {
             Some(&ParseContext::Value) => false,
             Some(&ParseContext::Node(has_comma)) => has_comma,
             Some(&ParseContext::List(has_comma)) => has_comma,
+            Some(&ParseContext::Dict(has_comma)) => has_comma,
         }
     }
 
@@ -75,10 +79,11 @@ impl<R: Read> Parser<R> {
             None => None,
             Some(ParseContext::Node(_)) => Some(ParseContext::Node(state)),
             Some(ParseContext::List(_)) => Some(ParseContext::List(state)),
+            Some(ParseContext::Dict(_)) => Some(ParseContext::Dict(state)),
             Some(ctx) => Some(ctx),
         };
 
-        if !pushable.is_none() {
+        if pushable.is_some() {
             self.context.push(pushable.unwrap());
         }
     }
@@ -216,9 +221,12 @@ impl<R: Read> Parser<R> {
             },
             Some(Ok(LexToken::OpenBracket)) => {
                 self.context.push(ParseContext::List(true));
-                self.context.push(ParseContext::Value);
                 self.yield_state(ParseEvent::ListStart)
-            }
+            },
+            Some(Ok(LexToken::OpenBrace)) => {
+                self.context.push(ParseContext::Dict(true));
+                self.yield_state(ParseEvent::DictStart)
+            },
             Some(Ok(tok)) => self.yield_error(ParseError::UnexpectedToken(tok)),
         };
 
@@ -244,6 +252,42 @@ impl<R: Read> Parser<R> {
             // and parse the next token(s) as a value.
             self.context.push(ParseContext::Value);
             self.parse_context_value()
+        }
+    }
+
+    fn parse_context_dict(&mut self) -> Option<ParseResult> {
+        match self.lexer.next() {
+            Some(Ok(LexToken::CloseBrace)) => {
+                self.context.pop();
+                self.yield_state(ParseEvent::DictEnd)
+            },
+            Some(Ok(LexToken::StringLit(key))) => {
+                if !self.has_comma() {
+                    return self.yield_error(ParseError::UnexpectedToken(LexToken::StringLit(key)));
+                }
+                self.set_comma(false);
+                match self.lexer.next() {
+                    Some(Ok(LexToken::Colon)) => {
+                        self.context.push(ParseContext::Value);
+                        self.yield_state(ParseEvent::NewPair(key))
+                    },
+                    Some(Ok(tok)) =>
+                        self.yield_error(ParseError::UnexpectedToken(tok)),
+                    Some(Err(err)) =>
+                        self.lex_error(err),
+                    None =>
+                        self.yield_error(ParseError::UnexpectedEndOfFile),
+                }
+            },
+            Some(Ok(tok)) => {
+                self.yield_error(ParseError::UnexpectedToken(tok))
+            },
+            Some(Err(err)) => {
+                self.yield_error(ParseError::LexError(err))
+            },
+            None => {
+                self.yield_error(ParseError::UnexpectedEndOfFile)
+            }
         }
     }
 
@@ -284,6 +328,10 @@ impl<R: Read> Iterator for Parser<R> {
             Some(ParseContext::List(_)) => {
                 self.context.push(current_state.unwrap());
                 self.parse_context_list()
+            },
+            Some(ParseContext::Dict(_)) => {
+                self.context.push(current_state.unwrap());
+                self.parse_context_dict()
             }
         }
     }
@@ -407,6 +455,19 @@ mod tests {
     }
 
     #[test]
+    fn concats_string_values() {
+        let file = Cursor::new("node { 'key': 'value 1' 'value 2' }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("value 1value 2".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert!(parser.next().is_none());
+    }
+
+    #[test]
     fn requires_comma_between_key_value_pairs() {
         // with
         let file = Cursor::new("node { 'key1': true, 'key2': 'val' }".as_bytes());
@@ -460,8 +521,28 @@ mod tests {
     }
 
     #[test]
+    fn handle_nested_lists() {
+        let file = Cursor::new("node { 'key': ['lista', ['listb', []]] }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("lista".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("listb".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert!(parser.next().is_none());
+    }
+
+    #[test]
     fn trailing_commas() {
-        let file = Cursor::new("node { 'key': [1, 2,], }".as_bytes());
+        let file = Cursor::new("node { 'key': [1, 2,], subnode {} }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
@@ -470,6 +551,8 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(1)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(2)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("subnode".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
@@ -483,13 +566,38 @@ mod tests {
     }
 
     #[test]
-    fn concats_string_values() {
-        let file = Cursor::new("node { 'key': 'value 1' 'value 2' }".as_bytes());
+    fn handles_dict_values() {
+        let file = Cursor::new("node { 'key': {'1': 2, '3': 4} }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("value 1value 2".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("1".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(2)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("3".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(4)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert!(parser.next().is_none());
+    }
+
+    #[test]
+    fn handle_nested_dicts() {
+        let file = Cursor::new("node { 'key': {'1': {'b': {} } } }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("1".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("b".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
