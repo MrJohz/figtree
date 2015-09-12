@@ -18,7 +18,9 @@ pub enum ParseEvent {
     NodeStart(String),
     NodeEnd,
     NewPair(String),
-    PairedValue(Value),
+    Value(Value),
+    ListStart,
+    ListEnd,
 }
 
 #[derive(Debug, PartialEq)]
@@ -33,6 +35,7 @@ pub enum ParseContext {
     Basefile,
     Node(bool),
     Value,
+    List(bool),
 }
 
 type ContextStack = Vec<ParseContext>;
@@ -63,6 +66,7 @@ impl<R: Read> Parser<R> {
             Some(&ParseContext::Basefile) => false,
             Some(&ParseContext::Value) => false,
             Some(&ParseContext::Node(has_comma)) => has_comma,
+            Some(&ParseContext::List(has_comma)) => has_comma,
         }
     }
 
@@ -70,6 +74,7 @@ impl<R: Read> Parser<R> {
         let pushable = match self.context.pop() {
             None => None,
             Some(ParseContext::Node(_)) => Some(ParseContext::Node(state)),
+            Some(ParseContext::List(_)) => Some(ParseContext::List(state)),
             Some(ctx) => Some(ctx),
         };
 
@@ -157,6 +162,7 @@ impl<R: Read> Parser<R> {
     }
 
     fn parse_context_value(&mut self) -> Option<ParseResult> {
+        self.context.pop();
        let response = match self.lexer.next() {
             None => self.yield_error(ParseError::UnexpectedEndOfFile),
             Some(Err(err)) => self.yield_error(ParseError::LexError(err)),
@@ -177,26 +183,21 @@ impl<R: Read> Parser<R> {
                         _ => unreachable!(),
                     }
                 }
-                self.context.pop();
-                self.yield_state(ParseEvent::PairedValue(Value::Str(val_string)))
+                self.yield_state(ParseEvent::Value(Value::Str(val_string)))
             },
             Some(Ok(LexToken::IntegerLit(integer))) => {
-                self.context.pop();
-                self.yield_state(ParseEvent::PairedValue(Value::Int(integer)))
+                self.yield_state(ParseEvent::Value(Value::Int(integer)))
             }
             Some(Ok(LexToken::FloatLit(flt))) => {
-                self.context.pop();
-                self.yield_state(ParseEvent::PairedValue(Value::Float(flt)))
+                self.yield_state(ParseEvent::Value(Value::Float(flt)))
             }
             Some(Ok(LexToken::Identifier(ident))) => {
                 match &*ident {
                     "true" => {
-                        self.context.pop();
-                        self.yield_state(ParseEvent::PairedValue(Value::Bool(true)))
+                        self.yield_state(ParseEvent::Value(Value::Bool(true)))
                     },
                     "false" => {
-                        self.context.pop();
-                        self.yield_state(ParseEvent::PairedValue(Value::Bool(false)))
+                        self.yield_state(ParseEvent::Value(Value::Bool(false)))
                     },
                     _ => {
                         self.yield_error(ParseError::UnexpectedToken(LexToken::Identifier(ident)))
@@ -206,29 +207,42 @@ impl<R: Read> Parser<R> {
             Some(Ok(LexToken::Bang)) => {
                 match self.lexer.next() {
                     Some(Ok(LexToken::Identifier(s))) => {
-                        self.context.pop();
-                        self.yield_state(ParseEvent::PairedValue(Value::Ident(s)))
+                        self.yield_state(ParseEvent::Value(Value::Ident(s)))
                     },
                     Some(Ok(tok)) => self.yield_error(ParseError::UnexpectedToken(tok)),
                     Some(Err(err)) => self.lex_error(err),
                     None => self.yield_error(ParseError::UnexpectedEndOfFile),
                 }
             },
+            Some(Ok(LexToken::OpenBracket)) => {
+                self.context.push(ParseContext::List(true));
+                self.context.push(ParseContext::Value);
+                self.yield_state(ParseEvent::ListStart)
+            }
             Some(Ok(tok)) => self.yield_error(ParseError::UnexpectedToken(tok)),
         };
 
-        // weird way of doing things, but has_comma() is *false* at the moment.  If
-        // the next token (unconsumed) is a comma, set it to true.  Can't consume that
-        // next token while borrowing self.lexer, so in the next statement, if
-        // has_comma() is *true* (that is, previous if-statement matched), consume it.
-        if let Some(&Ok(LexToken::Comma)) = self.lexer.peek() {
+        if matches!(self.lexer.peek(), Some(&Ok(LexToken::Comma))) {
             self.set_comma(true);
-        }
-        if self.has_comma() {
             self.lexer.next();
         }
 
         response
+    }
+
+    fn parse_context_list(&mut self) -> Option<ParseResult> {
+        if matches!(self.lexer.peek(), Some(&Ok(LexToken::CloseBracket))) {
+            self.lexer.next(); // consume close-bracket
+            self.context.pop();
+            if matches!(self.lexer.peek(), Some(&Ok(LexToken::Comma))) {
+                self.set_comma(true);
+                self.lexer.next();
+            }
+            self.yield_state(ParseEvent::ListEnd)
+        } else {
+            self.context.push(ParseContext::Value);
+            self.parse_context_value()
+        }
     }
 
     fn yield_state(&mut self, state: ParseEvent) -> Option<ParseResult> {
@@ -264,6 +278,10 @@ impl<R: Read> Iterator for Parser<R> {
             Some(ParseContext::Value) => {
                 self.context.push(current_state.unwrap());
                 self.parse_context_value()
+            },
+            Some(ParseContext::List(_)) => {
+                self.context.push(current_state.unwrap());
+                self.parse_context_list()
             }
         }
     }
@@ -330,7 +348,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Str("value".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("value".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
@@ -340,7 +358,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Int(3)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(3)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
@@ -350,7 +368,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Float(3.5)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Float(3.5)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
@@ -360,7 +378,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Bool(true)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(true)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
@@ -370,7 +388,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Bool(false)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(false)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
@@ -380,7 +398,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Ident("my_ident".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Ident("my_ident".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
@@ -394,9 +412,9 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key1".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Bool(true)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(true)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key2".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Str("val".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("val".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
@@ -407,7 +425,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key1".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Bool(true)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(true)));
         assert_eq!(parser.next().unwrap().unwrap_err().0, ParseError::UnexpectedToken(LexToken::StringLit("key2".to_string())));
         assert!(parser.next().is_none());
         let file = Cursor::new("node { 'key1': 'true' 'key2': 'val' }".as_bytes());
@@ -415,8 +433,27 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key1".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Str("truekey2".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("truekey2".to_string())));
         assert_eq!(parser.next().unwrap().unwrap_err().0, ParseError::UnexpectedToken(LexToken::Colon));
+        assert!(parser.next().is_none());
+    }
+
+    #[test]
+    fn handle_list_values() {
+        let file = Cursor::new("node { 'key': ['val1', 2, 3.4, false, !ident] }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("val1".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(2)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Float(3.4)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(false)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Ident("ident".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
     }
 
@@ -427,7 +464,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::PairedValue(Value::Str("value 1value 2".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("value 1value 2".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
         assert!(parser.next().is_none());
