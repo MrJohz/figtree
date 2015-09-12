@@ -13,11 +13,11 @@ pub enum Value {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseEvent {
-    BeginFile,
-    EndOfFile,
+    FileStart,
+    FileEnd,
     NodeStart(String),
     NodeEnd,
-    NewPair(String),
+    Key(String),
     Value(Value),
     ListStart,
     ListEnd,
@@ -110,7 +110,7 @@ impl<R: Read> Parser<R> {
             self.lex_error(next)
         } else {
             self.ended = true;
-            self.yield_state(ParseEvent::EndOfFile)
+            self.yield_state(ParseEvent::FileEnd)
         }
     }
 
@@ -144,7 +144,7 @@ impl<R: Read> Parser<R> {
                 match self.lexer.next() {
                     Some(Ok(LexToken::Colon)) => {
                         self.context.push(ParseContext::Value);
-                        self.yield_state(ParseEvent::NewPair(key))
+                        self.yield_state(ParseEvent::Key(key))
                     },
                     Some(Ok(tok)) =>
                         self.yield_error(ParseError::UnexpectedToken(tok)),
@@ -269,7 +269,7 @@ impl<R: Read> Parser<R> {
                 match self.lexer.next() {
                     Some(Ok(LexToken::Colon)) => {
                         self.context.push(ParseContext::Value);
-                        self.yield_state(ParseEvent::NewPair(key))
+                        self.yield_state(ParseEvent::Key(key))
                     },
                     Some(Ok(tok)) =>
                         self.yield_error(ParseError::UnexpectedToken(tok)),
@@ -311,7 +311,7 @@ impl<R: Read> Iterator for Parser<R> {
         match current_state {
             None => {
                 self.context.push(ParseContext::Basefile);
-                self.yield_state(ParseEvent::BeginFile)
+                self.yield_state(ParseEvent::FileStart)
             }
             Some(ParseContext::Basefile) => {
                 self.context.push(current_state.unwrap());
@@ -347,8 +347,8 @@ mod tests {
     fn handle_empty_file() {
         let file = Cursor::new("".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
     }
 
@@ -356,10 +356,10 @@ mod tests {
     fn handle_node() {
         let file = Cursor::new("node { }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
     }
 
@@ -367,17 +367,17 @@ mod tests {
     fn handle_nested_node() {
         let file = Cursor::new("node { subnode {} }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("subnode".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
 
         // arbitrary depth of stack
         let file = Cursor::new("node { subnode { sub { sub { sub {} } } } }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("subnode".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("sub".to_string()));
@@ -388,69 +388,69 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
     }
 
     #[test]
     fn handle_key_value_pair() {
         let file = Cursor::new("node { 'key': 'value' }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("value".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
 
         let file = Cursor::new("node { 'key': 3 }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(3)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
 
         let file = Cursor::new("node { 'key': 3.5 }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Float(3.5)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
 
         let file = Cursor::new("node { 'key': true }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(true)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
 
         let file = Cursor::new("node { 'key': false }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(false)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
 
         let file = Cursor::new("node { 'key': !my_ident }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Ident("my_ident".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
     }
 
@@ -458,12 +458,12 @@ mod tests {
     fn concats_string_values() {
         let file = Cursor::new("node { 'key': 'value 1' 'value 2' }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("value 1value 2".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
     }
 
@@ -472,30 +472,30 @@ mod tests {
         // with
         let file = Cursor::new("node { 'key1': true, 'key2': 'val' }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key1".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key1".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(true)));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key2".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key2".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("val".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
 
         // without
         let file = Cursor::new("node { 'key1': true 'key2': 'val' }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key1".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key1".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(true)));
         assert_eq!(parser.next().unwrap().unwrap_err().0, ParseError::UnexpectedToken(LexToken::StringLit("key2".to_string())));
         assert!(parser.next().is_none());
         let file = Cursor::new("node { 'key1': 'true' 'key2': 'val' }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key1".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key1".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("truekey2".to_string())));
         assert_eq!(parser.next().unwrap().unwrap_err().0, ParseError::UnexpectedToken(LexToken::Colon));
         assert!(parser.next().is_none());
@@ -505,9 +505,9 @@ mod tests {
     fn handle_list_values() {
         let file = Cursor::new("node { 'key': ['val1', 2, 3.4, false, !ident] }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("val1".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(2)));
@@ -516,7 +516,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Ident("ident".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
     }
 
@@ -524,9 +524,9 @@ mod tests {
     fn handle_nested_lists() {
         let file = Cursor::new("node { 'key': ['lista', ['listb', []]] }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("lista".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
@@ -536,7 +536,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
     }
 
@@ -544,9 +544,9 @@ mod tests {
     fn trailing_commas() {
         let file = Cursor::new("node { 'key': [1, 2,], subnode {} }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(1)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(2)));
@@ -554,12 +554,12 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("subnode".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
 
         let file = Cursor::new("node { , }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap_err().0, ParseError::UnexpectedToken(LexToken::Comma));
         assert!(parser.next().is_none());
@@ -569,17 +569,17 @@ mod tests {
     fn handles_dict_values() {
         let file = Cursor::new("node { 'key': {'1': 2, '3': 4} }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictStart);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("1".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("1".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(2)));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("3".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("3".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(4)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
     }
 
@@ -587,19 +587,19 @@ mod tests {
     fn handle_nested_dicts() {
         let file = Cursor::new("node { 'key': {'1': {'b': {} } } }".as_bytes());
         let mut parser = Parser::parse(Lexer::lex(file));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictStart);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("1".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("1".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictStart);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("b".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("b".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
     }
 }
