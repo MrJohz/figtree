@@ -240,6 +240,8 @@ impl<R: Read> Parser<R> {
             }
             self.yield_state(ParseEvent::ListEnd)
         } else {
+            // This isn't a close-bracket, so push a value context
+            // and parse the next token(s) as a value.
             self.context.push(ParseContext::Value);
             self.parse_context_value()
         }
@@ -454,6 +456,29 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert!(parser.next().is_none());
+    }
+
+    #[test]
+    fn trailing_commas() {
+        let file = Cursor::new("node { 'key': [1, 2,], }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NewPair("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(1)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(2)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::EndOfFile);
+        assert!(parser.next().is_none());
+
+        let file = Cursor::new("node { , }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::BeginFile);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap_err().0, ParseError::UnexpectedToken(LexToken::Comma));
         assert!(parser.next().is_none());
     }
 
