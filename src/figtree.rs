@@ -24,17 +24,53 @@ impl<T: Read> Figtree<T> {
     pub fn parse(&mut self) -> Result<Document, (ParseError, Position)> {
         let mut doc = Document::new();
         match self.parser.next() {
-            Some(Ok((ParseEvent::FileStart, _))) =>
-                self.parse_file(&mut doc),
+            Some(Ok((ParseEvent::FileStart, _))) => {
+                if let Some(err) = self.parse_file(&mut doc) {
+                    return Err(err);
+                }
+            }
             Some(Ok(_)) | None =>
-                panic!("ParseEvent occurred that cannot happen at this time."),
+                unreachable!("ParseEvent occurred that cannot happen at this time."),
             Some(Err(error)) =>
                 return Err(error),
         }
         Ok(doc)
     }
 
-    fn parse_file(&mut self, doc: &mut Document) {
-        // TODO: implement!
+    fn parse_file(&mut self, doc: &mut Document) -> Option<(ParseError, Position)> {
+        loop {
+            match self.parser.next() {
+                Some(Ok((ParseEvent::NodeStart(name), _))) => {
+                    if let Some(err) = self.parse_node(doc.new_node(name)) {
+                        return Some(err);
+                    }
+                },
+                Some(Ok((ParseEvent::FileEnd, _))) => {
+                    return None;
+                },
+                Some(Ok(ev)) =>
+                    unreachable!("ParseEvent {:?} occured that cannot happen at this time.", ev),
+                Some(Err(error)) => { return Some(error) },
+                None =>
+                    unreachable!("EOF occured that cannot happen at this time."),
+            }
+        }
+    }
+
+    fn parse_node(&mut self, doc: &mut Node) -> Option<(ParseError, Position)> {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Figtree;
+    use std::io::Cursor;
+
+    #[test]
+    fn construct_empty_file() {
+        let mut figgy = Figtree::<Cursor<&[u8]>>::from_string("");
+        let config = figgy.parse().unwrap();
+        assert_eq!(config.nodes.len(), 0);
     }
 }
