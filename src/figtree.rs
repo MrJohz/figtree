@@ -65,7 +65,6 @@ impl Figtree {
 #[cfg(test)]
 mod tests {
     use super::Figtree;
-    use std::io::Cursor;
 
     #[test]
     fn construct_empty_file() {

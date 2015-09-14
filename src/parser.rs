@@ -1,6 +1,5 @@
 use super::lexer::{Lexer, LexToken, LexError};
 use super::position::Position;
-use std::io::prelude::*;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
