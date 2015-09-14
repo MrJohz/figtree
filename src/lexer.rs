@@ -6,7 +6,6 @@ use std::str::FromStr;
 use utils::CharReader;
 use position::Position;
 
-type LexReader<R: Read> = CharReader<io::BufReader<R>>;
 type LexResult = Result<LexToken, LexError>;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -30,18 +29,18 @@ pub enum LexError {
     UnrecognisedCharError(char),
 }
 
-pub struct Lexer<R: Read> {
-    input: LexReader<R>,
+pub struct Lexer {
     pub position: Position,
+    input: CharReader<io::BufReader<Box<Read>>>,
     stored_next: Vec<char>,
     errored: bool,
     peeked_next: Option<LexResult>,
 }
 
-impl<R: Read> Lexer<R> {
-    pub fn lex(reader: R) -> Self {
+impl Lexer {
+    pub fn lex<R: Read>(reader: R) -> Self {
         Lexer {
-            input: CharReader::new(io::BufReader::new(reader)),
+            input: CharReader::new(io::BufReader::new(Box::new(reader))),
             position: Position::new(),
             stored_next: Vec::new(),
             errored: false,
@@ -306,7 +305,7 @@ impl<R: Read> Lexer<R> {
     }
 }
 
-impl<R: Read> Iterator for Lexer<R> {
+impl Iterator for Lexer {
     type Item = Result<LexToken, LexError>;
 
     fn next(&mut self) -> Option<Self::Item> {

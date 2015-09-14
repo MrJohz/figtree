@@ -6,18 +6,18 @@ use super::position::Position;
 
 use super::types::*;
 
-pub struct Figtree<T: Read> {
-    parser: Parser<T>,
+pub struct Figtree {
+    parser: Parser,
 }
 
-impl<T: Read> Figtree<T> {
-    pub fn new(input: T) -> Self {
+impl Figtree {
+    pub fn new<T: Read>(input: T) -> Self {
         Figtree {
             parser: Parser::parse(Lexer::lex(input))
         }
     }
 
-    pub fn from_string(input: &str) -> Figtree<Cursor<&[u8]>> {
+    pub fn from_string(input: &str) -> Figtree {
         Figtree::new(Cursor::new(input.as_bytes()))
     }
 
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn construct_empty_file() {
-        let mut figgy = Figtree::<Cursor<&[u8]>>::from_string("");
+        let mut figgy = Figtree::from_string("");
         let config = figgy.parse().unwrap();
         assert_eq!(config.nodes.len(), 0);
     }

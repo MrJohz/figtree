@@ -44,14 +44,14 @@ pub enum ParseContext {
 type ContextStack = Vec<ParseContext>;
 pub type ParseResult = Result<(ParseEvent, Position), (ParseError, Position)>;
 
-pub struct Parser<R: Read> {
+pub struct Parser {
     context: ContextStack,
     ended: bool,
-    lexer: Lexer<R>,
+    lexer: Lexer,
 }
 
-impl<R: Read> Parser<R> {
-    pub fn parse(lexer: Lexer<R>) -> Self {
+impl Parser {
+    pub fn parse(lexer: Lexer) -> Self {
         Parser {
             context: ContextStack::new(),
             ended: false,
@@ -301,7 +301,7 @@ impl<R: Read> Parser<R> {
     }
 }
 
-impl<R: Read> Iterator for Parser<R> {
+impl Iterator for Parser {
     type Item = ParseResult;
 
     fn next(&mut self) -> Option<Self::Item> {
