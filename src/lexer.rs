@@ -38,7 +38,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    pub fn lex<R: Read>(reader: R) -> Self {
+    pub fn lex<R: Read + 'static>(reader: R) -> Self {
         Lexer {
             input: CharReader::new(io::BufReader::new(Box::new(reader))),
             position: Position::new(),

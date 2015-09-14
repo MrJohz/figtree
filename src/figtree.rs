@@ -11,14 +11,14 @@ pub struct Figtree {
 }
 
 impl Figtree {
-    pub fn new<T: Read>(input: T) -> Self {
+    pub fn new<T: Read + 'static>(input: T) -> Self {
         Figtree {
             parser: Parser::parse(Lexer::lex(input))
         }
     }
 
-    pub fn from_string(input: &str) -> Figtree {
-        Figtree::new(Cursor::new(input.as_bytes()))
+    pub fn from_string<T>(input: T) -> Figtree where T: Into<String> {
+        Figtree::new(Cursor::new(input.into().into_bytes()))
     }
 
     pub fn parse(&mut self) -> Result<Document, (ParseError, Position)> {
