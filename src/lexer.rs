@@ -22,6 +22,8 @@ pub enum LexToken {
 #[derive(Debug, PartialEq)]
 pub enum LexError {
     UnclosedStringError,
+    UnclosedIdentError,
+    NewlineInIdentifier,
     InvalidEscape(char),
     InvalidUnicodeEscape(u32),
     FloatParseError(<f64 as FromStr>::Err),
@@ -235,11 +237,40 @@ impl Lexer {
         }
     }
 
+    fn parse_unicode(&mut self) -> Result<char, LexError> {
+        let mut uvalue = 0;
+        for _ in 0..4 {
+            if let Some(ch) = self.pop_next() {
+                uvalue = match ch {
+                    '0'...'9' =>
+                        uvalue * 16 + ((ch as u16) - ('0' as u16)),
+                    'a'...'f' =>
+                        uvalue * 16 + (10 + (ch as u16) - ('a' as u16)),
+                    'A'...'F' =>
+                        uvalue * 16 + (10 + (ch as u16) - ('A' as u16)),
+                    _ => {
+                        return Err(LexError::InvalidUnicodeEscape(uvalue as u32));
+                    },
+                };
+            } else {
+                return Err(LexError::UnclosedStringError);
+            }
+        }
+
+        if let Some(next_char) = from_u32(uvalue as u32) {
+            Ok(next_char)
+        } else {
+            Err(LexError::InvalidUnicodeEscape(uvalue as u32))
+        }
+    }
+
     fn parse_string(&mut self) -> Option<LexResult> {
         let mut buffer = String::new();
         let mut quote_closed = false;
         let quote_char = match self.pop_next() {
-            Some(c) => c,
+            Some('\'') => '\'',
+            Some('\"') => '\"',
+            Some(ch) => unreachable!("{:?} should not be a quote char", ch),
             None => { return None; },
         };
 
@@ -257,29 +288,9 @@ impl Lexer {
                     Some('b') => { buffer.push('\x08'); },
                     Some('f') => { buffer.push('\x0c'); },
                     Some('u') => {
-                        let mut uvalue = 0;
-                        for _ in 0..4 {
-                            if let Some(ch) = self.pop_next() {
-                                uvalue = match ch {
-                                    '0'...'9' =>
-                                        uvalue * 16 + ((ch as u16) - ('0' as u16)),
-                                    'a'...'f' =>
-                                        uvalue * 16 + (10 + (ch as u16) - ('a' as u16)),
-                                    'A'...'F' =>
-                                        uvalue * 16 + (10 + (ch as u16) - ('A' as u16)),
-                                    _ => {
-                                        return self.err(LexError::InvalidUnicodeEscape(uvalue as u32));
-                                    },
-                                };
-                            } else {
-                                return self.err(LexError::UnclosedStringError);
-                            }
-                        }
-
-                        if let Some(next_char) = from_u32(uvalue as u32) {
-                            buffer.push(next_char);
-                        } else {
-                            return self.err(LexError::InvalidUnicodeEscape(uvalue as u32));
+                        match self.parse_unicode() {
+                            Ok(next_char) => { buffer.push(next_char); },
+                            Err(err) => { return self.err(err); }
                         }
                     },
                     Some(c) => {
@@ -301,6 +312,59 @@ impl Lexer {
             Some(Ok(LexToken::StringLit(buffer)))
         } else {
             self.err(LexError::UnclosedStringError)
+        }
+    }
+
+    fn parse_ident_escaped(&mut self) -> Option<LexResult> {
+        let mut buffer = String::new();
+        let mut quote_closed = false;
+        match self.pop_next() {
+            Some('`') => '`',
+            Some(ch) => unreachable!("{:?} should not be a quote char", ch),
+            None => { return None; },
+        };
+        println!("Parsing ident escaped");
+
+        while let Some(next_char) = self.pop_next() {
+            println!("{:?}", next_char);
+            if next_char == '\\' {
+                // escape next character
+                match self.pop_next() {
+                    Some('`') => { buffer.push('`'); },
+                    Some('/') => { buffer.push('/'); },
+                    Some('n') => { buffer.push('\n'); },
+                    Some('r') => { buffer.push('\r'); },
+                    Some('t') => { buffer.push('\t'); },
+                    Some('\\') => { buffer.push('\\'); },
+                    Some('b') => { buffer.push('\x08'); },
+                    Some('f') => { buffer.push('\x0c'); },
+                    Some('u') => {
+                        match self.parse_unicode() {
+                            Ok(next_char) => { buffer.push(next_char); },
+                            Err(err) => { return self.err(err); }
+                        }
+                    },
+                    Some(c) => {
+                        return self.err(LexError::InvalidEscape(c));
+                    },
+                    None => {
+                        return self.err(LexError::UnclosedIdentError);
+                    },
+                }
+            } else if next_char == '\n' {
+                return self.err(LexError::NewlineInIdentifier)
+            } else if next_char == '`' {
+                quote_closed = true;
+                break;
+            } else {
+                buffer.push(next_char);
+            }
+        }
+
+        if quote_closed {
+            Some(Ok(LexToken::Identifier(buffer)))
+        } else {
+            self.err(LexError::UnclosedIdentError)
         }
     }
 }
@@ -333,6 +397,9 @@ impl Iterator for Lexer {
                 Some(Ok(LexToken::Bang))
             } else if next_char == ':' {
                 Some(Ok(LexToken::Colon))
+            } else if next_char == '`' {
+                self.ret_next(next_char);
+                self.parse_ident_escaped()
             } else if ident_head(next_char) {
                 self.ret_next(next_char);
                 self.parse_ident()
@@ -427,6 +494,33 @@ mod tests {
         let mut lexer = Lexer::lex(Cursor::new("🐶".as_bytes())); // heart
         assert_eq!(lexer.parse_ident().unwrap().unwrap(),
             LexToken::Identifier("🐶".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("`ident`".as_bytes()));
+        assert_eq!(lexer.parse_ident_escaped().unwrap().unwrap(),
+            LexToken::Identifier("ident".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("`id\\u0041ent`".as_bytes()));
+        assert_eq!(lexer.parse_ident_escaped().unwrap().unwrap(),
+            LexToken::Identifier("idAent".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("`i\\ndent`".as_bytes()));
+        assert_eq!(lexer.parse_ident_escaped().unwrap().unwrap(),
+            LexToken::Identifier("i\ndent".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("`i\ndent`".as_bytes()));
+        assert_eq!(lexer.parse_ident_escaped().unwrap().unwrap_err(),
+            LexError::NewlineInIdentifier);
+
+        let mut lexer = Lexer::lex(Cursor::new("`stri\\\\ng`".as_bytes()));
+        assert_eq!(lexer.parse_ident_escaped().unwrap().unwrap(),
+            LexToken::Identifier("stri\\ng".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("`string".as_bytes()));
+        match lexer.parse_ident_escaped().unwrap() {
+            Ok(_) => panic!("should raise error"),
+            Err(LexError::UnclosedIdentError) => assert!(true),
+            Err(_) => panic!("wrong error raised"),
+        }
     }
 
     #[test]
@@ -509,6 +603,10 @@ mod tests {
         let mut lexer = Lexer::lex(Cursor::new("'s\ntring'".as_bytes()));
         assert_eq!(lexer.parse_string().unwrap().unwrap(),
             LexToken::StringLit("s\ntring".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("'st\\u0041ring'".as_bytes()));
+        assert_eq!(lexer.parse_string().unwrap().unwrap(),
+            LexToken::StringLit("stAring".to_string()));
 
         let mut lexer = Lexer::lex(Cursor::new("'stri\\\\ng'".as_bytes()));
         assert_eq!(lexer.parse_string().unwrap().unwrap(),

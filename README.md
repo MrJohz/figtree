@@ -162,15 +162,17 @@ configuration files.
 
 ## TODO:
 - Lexing:
-    - Comments (`//`, `/*nested*/`)
-    - Raw stringlits (`/|[(%$#` chars)
-    - Idents - raw idents (using backticks), use swift's rules for idents
-    - Better unicode escapes
-- Pretty Value-reading API
-- /tests/ directory full of example uses
-- Documentation
-- Writing files as well as reading
-- Integrate serialisation/deserialisation
-- Other booleans?
-- Pull-parser API?
-- Interpolation - reference nodes?
+    + Comments (`//`, `/*nested*/`)
+    + Raw stringlits (`/|[(%$#` chars)
+    + Better unicode escapes
+    + Other booleans?
+- Fixes
+    + Position currently reads off the end of a token, not the start
+    + Lack of documentation
+    + Lack of API for getting values out of `types::Value`
+- Features
+    + Tests directory for example uses
+    + Write files out
+    + Integrate serialisation/deserialisation
+    + Pull parser API?
+    + Interpolation via `$reference` nodes?
