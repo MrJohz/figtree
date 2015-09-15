@@ -161,12 +161,14 @@ configuration files.
 
 
 ## TODO:
+- Lexing:
+    - Comments (`//`, `/*nested*/`)
+    - Raw stringlits (`/|[(%$#` chars)
+    - Idents - raw idents (using backticks), use swift's rules for idents
+    - Better unicode escapes
 - Pretty Value-reading API
 - /tests/ directory full of example uses
 - Documentation
-- Comments (`//`, `/*nested*/`)
-- Raw stringlits (`/|[(%$#` chars)
-- Idents - raw idents (using backticks), use swift's rules for idents
 - Writing files as well as reading
 - Integrate serialisation/deserialisation
 - Other booleans?

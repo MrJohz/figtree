@@ -3,7 +3,7 @@ use std::io;
 use std::char::from_u32;
 use std::str::FromStr;
 
-use utils::CharReader;
+use utils::{CharReader, ident_head, ident_body};
 use position::Position;
 
 type LexResult = Result<LexToken, LexError>;
@@ -86,7 +86,7 @@ impl Lexer {
     fn parse_ident(&mut self) -> Option<LexResult> {
         if let Some(next_char) = self.pop_next() {
             let mut ident = String::new();
-            if next_char.is_alphabetic() {
+            if ident_head(next_char) {
                 ident.push(next_char);
             } else {
                 self.ret_next(next_char);
@@ -94,7 +94,7 @@ impl Lexer {
             }
 
             while let Some(next_char) = self.pop_next() {
-                if next_char.is_alphanumeric() {
+                if ident_body(next_char) {
                     ident.push(next_char);
                 } else if next_char == '_' {
                     ident.push(next_char);
@@ -333,7 +333,7 @@ impl Iterator for Lexer {
                 Some(Ok(LexToken::Bang))
             } else if next_char == ':' {
                 Some(Ok(LexToken::Colon))
-            } else if next_char.is_alphabetic() {
+            } else if ident_head(next_char) {
                 self.ret_next(next_char);
                 self.parse_ident()
             } else if next_char.is_digit(10) || ['+', '-', '.'].contains(&next_char) {
