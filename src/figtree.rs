@@ -52,13 +52,22 @@ impl Figtree {
                     unreachable!("ParseEvent {:?} occured that cannot happen at this time.", ev),
                 Some(Err(error)) => { return Some(error) },
                 None =>
-                    unreachable!("EOF occured that cannot happen at this time."),
+                    unreachable!("EOF occurred that cannot happen at this time."),
             }
         }
     }
 
-    fn parse_node(&mut self, doc: &mut Node) -> Option<(ParseError, Position)> {
-        None
+    fn parse_node(&mut self, node: &mut Node) -> Option<(ParseError, Position)> {
+        loop {
+            match self.parser.next() {
+                Some(Ok((ParseEvent::NodeEnd, _))) => { return None; },
+                Some(Ok(ev)) =>
+                    unreachable!("ParseEvent {:?} occured that cannot happen at this time.", ev),
+                Some(Err(error)) => { return Some(error) },
+                None =>
+                    unreachable!("EOF occurred that cannot happen at this time."),
+            }
+        }
     }
 }
 
@@ -71,5 +80,12 @@ mod tests {
         let mut figgy = Figtree::from_string("");
         let config = figgy.parse().unwrap();
         assert_eq!(config.nodes.len(), 0);
+    }
+
+    #[test]
+    fn construct_empty_nodes_in_file() {
+        let mut figgy = Figtree::from_string("node {} hello {}");
+        let config = figgy.parse().unwrap();
+        assert_eq!(config.nodes.len(), 2);
     }
 }
