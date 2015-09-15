@@ -166,12 +166,12 @@ configuration files.
     + Better unicode escapes
     + Other booleans?
 - Fixes
-    + Position currently reads off the end of a token, not the start
     + Lack of documentation
     + Lack of API for getting values out of `types::Value`
 - Features
     + Tests directory for example uses
     + Write files out
     + Integrate serialisation/deserialisation
+    + Advanced position details - show beginning and end of token
     + Pull parser API?
     + Interpolation via `$reference` nodes?

@@ -33,6 +33,7 @@ pub enum LexError {
 }
 
 pub struct Lexer {
+    pub token_start: Position,
     pub position: Position,
     input: CharReader<io::BufReader<Box<Read>>>,
     stored_next: Vec<char>,
@@ -44,6 +45,7 @@ impl Lexer {
     pub fn lex<R: Read + 'static>(reader: R) -> Self {
         Lexer {
             input: CharReader::new(io::BufReader::new(Box::new(reader))),
+            token_start: Position::new(),
             position: Position::new(),
             stored_next: Vec::new(),
             errored: false,
@@ -424,7 +426,6 @@ impl Iterator for Lexer {
             // take first character, test if it's either whitespace or '/'
             if let Some(ch) = self.pop_next() {
                 if ch.is_whitespace() {
-                    // removed one piece of whitespace, continue to find next ignorable
                     continue;
                 } else if ch == '/' {
                     match self.pop_next() {
@@ -470,6 +471,8 @@ impl Iterator for Lexer {
                 break;
             }
         }
+
+        self.token_start = self.position.clone();
 
         if let Some(next_char) = self.pop_next() {
             if next_char == '{' {
@@ -519,32 +522,44 @@ mod tests {
         let mut lexer = Lexer::lex(cursor);
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("ident".to_string()));
+        assert_eq!(lexer.token_start, Position::at(0, 0));
         assert_eq!(lexer.position, Position::at(0, 5));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBrace);
+        assert_eq!(lexer.token_start, Position::at(0, 6));
         assert_eq!(lexer.position, Position::at(0, 7));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBrace);
+        assert_eq!(lexer.token_start, Position::at(0, 8));
         assert_eq!(lexer.position, Position::at(0, 9));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBracket);
+        assert_eq!(lexer.token_start, Position::at(0, 10));
         assert_eq!(lexer.position, Position::at(0, 11));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Bang);
+        assert_eq!(lexer.token_start, Position::at(0, 12));
         assert_eq!(lexer.position, Position::at(0, 13));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBracket);
+        assert_eq!(lexer.token_start, Position::at(0, 14));
         assert_eq!(lexer.position, Position::at(0, 15));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Colon);
+        assert_eq!(lexer.token_start, Position::at(0, 16));
         assert_eq!(lexer.position, Position::at(0, 17));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Comma);
+        assert_eq!(lexer.token_start, Position::at(0, 18));
         assert_eq!(lexer.position, Position::at(0, 19));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::IntegerLit(34));
+        assert_eq!(lexer.token_start, Position::at(0, 20));
         assert_eq!(lexer.position, Position::at(0, 22));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::FloatLit(3.5));
+        assert_eq!(lexer.token_start, Position::at(0, 23));
         assert_eq!(lexer.position, Position::at(0, 26));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::StringLit("str".to_string()));
+        assert_eq!(lexer.token_start, Position::at(0, 27));
         assert_eq!(lexer.position, Position::at(0, 32));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("true".to_string()));
+        assert_eq!(lexer.token_start, Position::at(0, 33));
         assert_eq!(lexer.position, Position::at(0, 37));
     }
 
