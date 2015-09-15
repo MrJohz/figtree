@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use super::parser::ParsedValue;
 
-pub type Map = HashMap<String, Value>;
+pub type Dict = HashMap<String, Value>;
 pub type List = Vec<Value>;
 
 #[derive(Debug, PartialEq)]
@@ -10,7 +11,7 @@ pub enum Value {
     Float(f64),
     Bool(bool),
     Ident(String),
-    Map(Map),
+    Dict(Dict),
     List(List),
 }
 
@@ -34,6 +35,16 @@ impl Value {
     pub fn new_bool(s: bool) -> Self {
         Value::Bool(s)
     }
+
+    pub fn from_parsed_value(val: ParsedValue) -> Self {
+        match val {
+            ParsedValue::Str(s) => Self::new_string(s),
+            ParsedValue::Float(f) => Self::new_float(f),
+            ParsedValue::Bool(b) => Self::new_bool(b),
+            ParsedValue::Int(i) => Self::new_int(i),
+            ParsedValue::Ident(i) => Self::new_ident(i),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -50,7 +61,7 @@ impl Node {
         }
     }
 
-    pub fn new_subnode<S>(&mut self, name: S) -> &mut Self
+    pub fn new_node<S>(&mut self, name: S) -> &mut Self
         where S: Into<String> + Clone {
 
         let key = name.clone().into();
@@ -58,12 +69,24 @@ impl Node {
         self.subnodes.get_mut(&key).unwrap()
     }
 
-    pub fn get_subnode<S>(&self, name: S) -> Option<&Self> where S: Into<String> {
+    pub fn get_node<S>(&self, name: S) -> Option<&Self> where S: Into<String> {
         self.subnodes.get(&name.into())
     }
 
-    pub fn get_subnode_mut<S>(&mut self, name: S) -> Option<&mut Self> where S: Into<String> {
+    pub fn get_node_mut<S>(&mut self, name: S) -> Option<&mut Self>
+        where S: Into<String> {
+
         self.subnodes.get_mut(&name.into())
+    }
+
+    pub fn get_attr<S>(&self, name: S) -> Option<&Value> where S: Into<String> {
+        self.attributes.get(&name.into())
+    }
+
+    pub fn get_attr_mut<S>(&mut self, name: S) -> Option<&mut Value>
+        where S: Into<String> {
+
+        self.attributes.get_mut(&name.into())
     }
 }
 
@@ -130,22 +153,22 @@ mod tests {
     #[test]
     fn node_tests() {
         let mut node = Node::new();
-        node.new_subnode("subnode_name").new_subnode("secondary_subnode");
+        node.new_node("subnode_name").new_node("secondary_subnode");
         assert_eq!(
-            node.get_subnode("subnode_name")
+            node.get_node("subnode_name")
                 .expect("couldn't find subnode_name")
-                .get_subnode("secondary_subnode"),
+                .get_node("secondary_subnode"),
             Some(&Node::new()));
     }
 
     #[test]
     fn document_tests() {
         let mut doc = Document::new();
-        doc.new_node("node_name").new_subnode("subnode");
+        doc.new_node("node_name").new_node("subnode");
         assert_eq!(
             doc.get_node("node_name")
                 .expect("couldn't find node_name")
-                .get_subnode("subnode"),
+                .get_node("subnode"),
             Some(&Node::new()));
     }
 }

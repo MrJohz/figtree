@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/MrJohz/figtree.svg?branch=master)](https://travis-ci.org/MrJohz/figtree)
+
 # Figtree - the noded config file
 
 ## What is Figtree?

@@ -2,7 +2,7 @@ use super::lexer::{Lexer, LexToken, LexError};
 use super::position::Position;
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Value {
+pub enum ParsedValue {
     Str(String),
     Int(i64),
     Float(f64),
@@ -17,7 +17,7 @@ pub enum ParseEvent {
     NodeStart(String),
     NodeEnd,
     Key(String),
-    Value(Value),
+    Value(ParsedValue),
     ListStart,
     ListEnd,
     DictStart,
@@ -187,21 +187,21 @@ impl Parser {
                         _ => unreachable!(),
                     }
                 }
-                self.yield_state(ParseEvent::Value(Value::Str(val_string)))
+                self.yield_state(ParseEvent::Value(ParsedValue::Str(val_string)))
             },
             Some(Ok(LexToken::IntegerLit(integer))) => {
-                self.yield_state(ParseEvent::Value(Value::Int(integer)))
+                self.yield_state(ParseEvent::Value(ParsedValue::Int(integer)))
             }
             Some(Ok(LexToken::FloatLit(flt))) => {
-                self.yield_state(ParseEvent::Value(Value::Float(flt)))
+                self.yield_state(ParseEvent::Value(ParsedValue::Float(flt)))
             }
             Some(Ok(LexToken::Identifier(ident))) => {
                 match &*ident {
                     "true" => {
-                        self.yield_state(ParseEvent::Value(Value::Bool(true)))
+                        self.yield_state(ParseEvent::Value(ParsedValue::Bool(true)))
                     },
                     "false" => {
-                        self.yield_state(ParseEvent::Value(Value::Bool(false)))
+                        self.yield_state(ParseEvent::Value(ParsedValue::Bool(false)))
                     },
                     _ => {
                         self.yield_error(ParseError::UnexpectedToken(LexToken::Identifier(ident)))
@@ -211,7 +211,7 @@ impl Parser {
             Some(Ok(LexToken::Bang)) => {
                 match self.lexer.next() {
                     Some(Ok(LexToken::Identifier(s))) => {
-                        self.yield_state(ParseEvent::Value(Value::Ident(s)))
+                        self.yield_state(ParseEvent::Value(ParsedValue::Ident(s)))
                     },
                     Some(Ok(tok)) => self.yield_error(ParseError::UnexpectedToken(tok)),
                     Some(Err(err)) => self.lex_error(err),
@@ -397,7 +397,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("value".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Str("value".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
@@ -407,7 +407,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(3)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Int(3)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
@@ -417,7 +417,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Float(3.5)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Float(3.5)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
@@ -427,7 +427,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(true)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Bool(true)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
@@ -437,7 +437,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(false)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Bool(false)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
@@ -447,7 +447,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Ident("my_ident".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Ident("my_ident".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
@@ -460,7 +460,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("value 1value 2".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Str("value 1value 2".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
@@ -474,9 +474,9 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key1".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(true)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Bool(true)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key2".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("val".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Str("val".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());
@@ -487,7 +487,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key1".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(true)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Bool(true)));
         assert_eq!(parser.next().unwrap().unwrap_err().0, ParseError::UnexpectedToken(LexToken::StringLit("key2".to_string())));
         assert!(parser.next().is_none());
         let file = Cursor::new("node { 'key1': 'true' 'key2': 'val' }".as_bytes());
@@ -495,7 +495,7 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key1".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("truekey2".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Str("truekey2".to_string())));
         assert_eq!(parser.next().unwrap().unwrap_err().0, ParseError::UnexpectedToken(LexToken::Colon));
         assert!(parser.next().is_none());
     }
@@ -508,11 +508,11 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("val1".to_string())));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(2)));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Float(3.4)));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Bool(false)));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Ident("ident".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Str("val1".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Int(2)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Float(3.4)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Bool(false)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Ident("ident".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
@@ -527,9 +527,9 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("lista".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Str("lista".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Str("listb".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Str("listb".to_string())));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
@@ -547,8 +547,8 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListStart);
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(1)));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(2)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Int(1)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Int(2)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::ListEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("subnode".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
@@ -573,9 +573,9 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictStart);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("1".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(2)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Int(2)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("3".to_string()));
-        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(Value::Int(4)));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Int(4)));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::DictEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
