@@ -61,6 +61,11 @@ impl Figtree {
         loop {
             match self.parser.next() {
                 Some(Ok((ParseEvent::NodeEnd, _))) => { return None; },
+                Some(Ok((ParseEvent::NodeStart(name), _))) => {
+                    if let Some(err) = self.parse_node(node.new_subnode(name)) {
+                        return Some(err);
+                    }
+                },
                 Some(Ok(ev)) =>
                     unreachable!("ParseEvent {:?} occured that cannot happen at this time.", ev),
                 Some(Err(error)) => { return Some(error) },
@@ -84,7 +89,7 @@ mod tests {
 
     #[test]
     fn construct_empty_nodes_in_file() {
-        let mut figgy = Figtree::from_string("node {} hello {}");
+        let mut figgy = Figtree::from_string("node {} hello { nested {} }");
         let config = figgy.parse().unwrap();
         assert_eq!(config.nodes.len(), 2);
     }
