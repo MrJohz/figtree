@@ -423,6 +423,10 @@ mod tests {
         let mut lexer = Lexer::lex(Cursor::new("th15_1s_an_1d3n7".as_bytes()));
         assert_eq!(lexer.parse_ident().unwrap().unwrap(),
             LexToken::Identifier("th15_1s_an_1d3n7".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("🐶".as_bytes())); // heart
+        assert_eq!(lexer.parse_ident().unwrap().unwrap(),
+            LexToken::Identifier("🐶".to_string()));
     }
 
     #[test]
