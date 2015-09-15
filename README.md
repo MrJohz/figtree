@@ -162,7 +162,6 @@ configuration files.
 
 ## TODO:
 - Lexing:
-    + Comments (`//`, `/*nested*/`)
     + Raw stringlits (`/|[(%$#` chars)
     + Better unicode escapes
     + Other booleans?

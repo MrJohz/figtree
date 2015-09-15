@@ -21,6 +21,7 @@ pub enum LexToken {
 
 #[derive(Debug, PartialEq)]
 pub enum LexError {
+    UnclosedCommentError,
     UnclosedStringError,
     UnclosedIdentError,
     NewlineInIdentifier,
@@ -323,10 +324,8 @@ impl Lexer {
             Some(ch) => unreachable!("{:?} should not be a quote char", ch),
             None => { return None; },
         };
-        println!("Parsing ident escaped");
 
         while let Some(next_char) = self.pop_next() {
-            println!("{:?}", next_char);
             if next_char == '\\' {
                 // escape next character
                 match self.pop_next() {
@@ -367,6 +366,48 @@ impl Lexer {
             self.err(LexError::UnclosedIdentError)
         }
     }
+
+    fn remove_line_comment(&mut self) -> Option<LexError> {
+        while let Some(ch) = self.pop_next() {
+            if ch == '\r' || ch == '\n' {
+                break;
+            }
+        }
+
+        None
+    }
+    fn remove_multiline_comment(&mut self) -> Option<LexError> {
+        let mut comment_level = 1;
+        loop {
+            if let Some(ch) = self.pop_next() {
+                if ch == '/' {
+                    if let Some(ch) = self.pop_next() {
+                        if ch == '*' {
+                            comment_level += 1;
+                        } else {
+                            self.ret_next(ch);
+                        }
+                    }
+                } else if ch == '*' {
+                    if let Some(ch) = self.pop_next() {
+                        if ch == '/' {
+                            comment_level -= 1;
+                        } else {
+                            self.ret_next(ch);
+                        }
+                    }
+                }
+
+                if comment_level == 0 {
+                    break;
+                }
+            } else {
+                return Some(LexError::UnclosedCommentError);
+            }
+        }
+
+        None
+    }
 }
 
 impl Iterator for Lexer {
@@ -377,12 +418,60 @@ impl Iterator for Lexer {
             return self.peeked_next.take();
         }
 
-        let mut option_char = self.pop_next();
-        while option_char.is_some() && option_char.unwrap().is_whitespace() {
-            option_char = self.pop_next();
+        // remove comments & whitespace (ignorables)
+        // loop continuously until told to break
+        loop {
+            // take first character, test if it's either whitespace or '/'
+            if let Some(ch) = self.pop_next() {
+                if ch.is_whitespace() {
+                    // removed one piece of whitespace, continue to find next ignorable
+                    continue;
+                } else if ch == '/' {
+                    match self.pop_next() {
+                        Some('/') => {
+                            // single line comment ("// hello")
+                            // remove, and continue cycle to find next ignorable
+                            if let Some(err) = self.remove_line_comment() {
+                                return self.err(err);
+                            }
+                            continue;
+                        },
+                        Some('*') => {
+                            // multiline comment ("/* hello */")
+                            // remove and continue cycle
+                            if let Some(err) = self.remove_multiline_comment() {
+                                return self.err(err);
+                            }
+                            continue;
+                        },
+                        Some(ch) => {
+                            // neither single nor multiline comment
+                            // nor is it whitespace (failed that check earlier)
+                            // return both popped characters and break out of loop
+                            self.ret_next(ch);
+                            self.ret_next('/');
+                            break;
+                        },
+                        None => {
+                            // Best place to deal with unexpected EOFs is in the main
+                            // lexer body, so break here and let it be dealt with
+                            // there.
+                            break;
+                        }
+                    }
+                } else {
+                    // not a whitespace, not a comment
+                    // return popped character and break out of loop
+                    self.ret_next(ch);
+                    break;
+                }
+            } else {
+                // None -> Pass to main lexer body, that knows how to deal with it best
+                break;
+            }
         }
 
-        if let Some(next_char) = option_char {
+        if let Some(next_char) = self.pop_next() {
             if next_char == '{' {
                 Some(Ok(LexToken::OpenBrace))
             } else if next_char == '}' {
@@ -457,6 +546,46 @@ mod tests {
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("true".to_string()));
         assert_eq!(lexer.position, Position::at(0, 37));
+    }
+
+    #[test]
+    fn ignore_comments() {
+        let mut lexer = Lexer::lex(Cursor::new("
+            1
+            // hello
+            2".as_bytes()));
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::IntegerLit(1));
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::IntegerLit(2));
+        assert!(lexer.next().is_none());
+
+        let mut lexer = Lexer::lex(Cursor::new("
+            1
+            // hello".as_bytes()));
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::IntegerLit(1));
+        assert!(lexer.next().is_none());
+
+        let mut lexer = Lexer::lex(Cursor::new("
+            1 /*
+            hello
+            */ 2".as_bytes()));
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::IntegerLit(1));
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::IntegerLit(2));
+        assert!(lexer.next().is_none());
+
+        // nested
+        let mut lexer = Lexer::lex(Cursor::new("
+            1 /* /*
+            hello
+            */ */ 2".as_bytes()));
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::IntegerLit(1));
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::IntegerLit(2));
+        assert!(lexer.next().is_none());
+
+        // error, unclosed
+        let mut lexer = Lexer::lex(Cursor::new("1 /*".as_bytes()));
+        assert_eq!(lexer.next().unwrap().unwrap(), LexToken::IntegerLit(1));
+        assert_eq!(lexer.next().unwrap().unwrap_err(), LexError::UnclosedCommentError);
+        assert!(lexer.next().is_none());
     }
 
     #[test]

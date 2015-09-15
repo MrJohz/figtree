@@ -118,9 +118,13 @@ mod tests {
         assert_eq!(pos.line, 0);
         assert_eq!(pos.pos, 10);
 
-        // pos.unpush(1);
-        // assert_eq!(pos.line, 0);
-        // assert_eq!(pos.pos, 9);
+        pos.unpush(1);
+        assert_eq!(pos.line, 0);
+        assert_eq!(pos.pos, 9);
+
+        pos.push(1);
+        assert_eq!(pos.line, 0);
+        assert_eq!(pos.pos, 10);
 
         pos.new_line();
         assert_eq!(pos.line, 1);
