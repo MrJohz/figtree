@@ -1,4 +1,5 @@
-use std::io::Cursor;
+use std::io::{Cursor, Error};
+use std::fs::File;
 use std::io::prelude::*;
 use std::iter::Peekable;
 
@@ -8,21 +9,116 @@ use super::position::Position;
 
 use super::types::*;
 
+/// Opens, parses, and reads figtree files.
+///
+/// The `Figtree` struct is essentially a wrapper around the internal pull-parser API
+/// that consumes the loaded document and transforms it into a `Document` struct.
+/// In future, it will also provide its own pull-parser API to allow for streamed parsing
+/// of documents and other advanced processing techniques.
+///
+/// # Examples
+///
+/// ```
+/// use figtree::Figtree;
+/// let mut figgy = Figtree::from_string("mydoc { 'key': 'val' }");
+/// let config = figgy.parse().ok().expect("Invalid document parsed");
+/// assert!(config.nodes.len() == 1);
+/// ```
 pub struct Figtree {
     parser: Peekable<Parser>,
 }
 
 impl Figtree {
+    /// Constructs a `Figtree` instance from a generic `Read` implementor.
+    ///
+    /// The `Read`er *must* also have a `'static` lifetime - that is, it cannot maintain
+    /// references to unowned data.  This shouldn't be much of a problem in most cases,
+    /// but it may catch you out.  This is the low-level method that does the hard work
+    /// of constructing a Figtree instance - you may want to use either `from_filename`
+    /// or `from_string` depending on your needs.
+    ///
+    /// # Examples
+    /// ```
+    /// # use figtree::Figtree;
+    /// # use std::io::Cursor;
+    /// let figgy = Figtree::new(Cursor::new(String::from("my_string").into_bytes()));
+    /// ```
     pub fn new<T: Read + 'static>(input: T) -> Self {
         Figtree {
             parser: Parser::parse(Lexer::lex(input)).peekable()
         }
     }
 
+    /// Constructs a `Figtree` instance from a local file.
+    ///
+    /// Use this over directly calling `Figtree::new` unless you need control over the
+    /// file-opening process.
+    ///
+    /// # Failures
+    /// This function will fail under the same circumstances that `File::open` will fail,
+    /// producing the same error (`std::io::Error`).
+    pub fn from_filename<T>(input: T) -> Result<Figtree, Error> where T: Into<String> {
+        Ok(Figtree::new(try!(File::open(input.into()))))
+    }
+
+    /// Constructs a `Figtree` instance from a &str or String.
+    ///
+    /// Use this over directly calling `Figtree::new()` unless you need control over the
+    /// file-opening process.
+    ///
+    /// Generally, using `from_filename` is better than loading the file into memory and
+    /// parsing it as a string.  That said, there may be circumstances where it is you
+    /// have a string, in which case this is better than writing the string to a file
+    /// and reading from that.
+    ///
+    /// Both an &str or a String can be used - or indeed anything that implements the
+    /// `Into<String>` trait.
+    ///
+    /// # Examples
+    /// ```
+    /// # use figtree::Figtree;
+    /// // N.B. syntax doesn't matter at this point as the file isn't parsed until
+    /// // the parse method is called.
+    /// let mut figgy = Figtree::from_string("input");
+    /// ```
     pub fn from_string<T>(input: T) -> Figtree where T: Into<String> {
         Figtree::new(Cursor::new(input.into().into_bytes()))
     }
 
+    /// Parse the document stored in this `Figtree` instance into a `Document`.
+    ///
+    /// # Failures
+    /// If a parsing error occurs, a `(ParseError, Position)` tuple is returned, where
+    /// the `ParseError` contains the kind of error that happened, and the `Position`
+    /// points to the position the lexer was in at the beginning of the last (erroring)
+    /// token.
+    ///
+    /// # Examples
+    /// Parsing successfully:
+    ///
+    /// ```
+    /// # use figtree::Figtree;
+    /// let mut figgy = Figtree::from_string("doc { 'key': 'value' }");
+    /// let config = figgy.parse().ok().expect("failed to parse");
+    /// assert!(config.nodes.len() == 1);
+    /// ```
+    ///
+    /// Parsing unsuccessfully
+    ///
+    /// ```
+    /// # use figtree::Figtree;
+    /// # use figtree::ParseError;
+    /// # use figtree::LexToken;
+    /// # use figtree::Position;
+    /// let mut figgy = Figtree::from_string("invalid document");
+    /// let error = figgy.parse().err().expect("parsing should have failed");
+    /// assert_eq!(
+    ///     error.0,
+    ///     ParseError::UnexpectedToken(LexToken::Identifier("document".to_string())));
+    /// assert_eq!(
+    ///     error.1,
+    ///     Position::at(0, 8));
+    /// ```
     pub fn parse(&mut self) -> Result<Document, (ParseError, Position)> {
         let mut doc = Document::new();
         match self.parser.next() {

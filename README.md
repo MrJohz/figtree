@@ -166,6 +166,7 @@ configuration files.
     + Better unicode escapes
     + Other booleans?
 - Fixes
+    + Convert `panic!()`s into something more appropriate like `unreachable!()`s.
     + Lack of documentation
     + Lack of API for getting values out of `types::Value`
 - Features
