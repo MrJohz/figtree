@@ -47,6 +47,29 @@ impl Value {
     }
 }
 
+/// A struct representing an individual node in a parsed document
+///
+/// # Examples
+///
+/// ```
+/// use figtree::types::*;
+/// let mut node = Node::new();
+/// assert!(node.subnodes.len() == 0);  // empty
+/// assert!(node.attributes.len() == 0);
+///
+/// node.new_node("subnode");
+///
+/// { // appease the borrow checker
+///     let subnode = node.get_node("subnode").expect("no such node");
+///     assert!(subnode == &Node::new());  // creates a blank subnode
+/// }
+///
+/// { // appease the borrow checker
+///     let mut subnode = node.get_node_mut("subnode").expect("no such node");
+///     let sub_subnode = subnode.new_node("sub_subnode");
+///     // etc.
+/// }
+/// ```
 #[derive(Debug, PartialEq)]
 pub struct Node {
     pub subnodes: HashMap<String, Node>,
@@ -90,18 +113,47 @@ impl Node {
     }
 }
 
+/// A struct representing a parsed figtree document.
+///
+/// # Examples
+///
+/// ```
+/// use figtree::types::*;
+/// let mut doc = Document::new();
+/// doc.new_node("node name");
+/// assert!(doc.nodes.len() == 1);
+///
+/// {   // appease the borrow checker by scoping this off
+///     // in real code this would be unnecessary because there is no need to do
+///     // something so pathological.
+///     let node = doc.get_node("node name").expect("no such node");
+///     assert!(node == &Node::new()); // new node is a fresh, blank node
+/// }
+///
+/// {   // again, appease the borrow checker
+///     let mut node = doc.get_node_mut("node name").expect("no such node");
+///     // node can be modified here
+/// }
+/// ```
 #[derive(Debug, PartialEq)]
 pub struct Document {
     pub nodes: HashMap<String, Node>,
 }
 
 impl Document {
+    /// Construct a new, empty document
     pub fn new() -> Self {
         Document {
             nodes: HashMap::new(),
         }
     }
 
+    /// Insert a node into the document.
+    ///
+    /// It must be possible to clone the node name, and turn it into a String.
+    /// This returns a mutable reference to the Node, because I assume in most cases
+    /// the desire would be to immediately start modifying the node that has just been
+    /// created.
     pub fn new_node<S>(&mut self, name: S) -> &mut Node
         where S: Into<String> + Clone {
 
@@ -110,10 +162,20 @@ impl Document {
         self.nodes.get_mut(&key).unwrap()
     }
 
+    /// Get a reference to a specified node
+    ///
+    /// Essentially a thin wrapper around the `Document.nodes` mapping, but it allows for
+    /// &str arguments, and allows users to do common operations without having to know
+    /// about the internal structure of the node.
     pub fn get_node<S>(&self, name: S) -> Option<&Node> where S: Into<String> {
         self.nodes.get(&name.into())
     }
 
+    /// Get a mutable reference to a specified node
+    ///
+    /// Essentially a thin wrapper around the `Document.nodes` mapping, but it allows for
+    /// &str arguments, and allows users to do common operations without having to know
+    /// about the internal structure of the node.
     pub fn get_node_mut<S>(&mut self, name: S) -> Option<&mut Node> where S: Into<String> {
         self.nodes.get_mut(&name.into())
     }

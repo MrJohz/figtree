@@ -14,7 +14,7 @@ mod parser;
 pub use parser::ParseEvent;
 pub use parser::ParseError;
 
-mod types;
+pub mod types;
 pub use types::*;
 
 mod figtree;
