@@ -77,6 +77,7 @@ pub struct Node {
 }
 
 impl Node {
+    /// Construct a new, empty node
     pub fn new() -> Self {
         Node {
             subnodes: HashMap::new(),
@@ -84,6 +85,12 @@ impl Node {
         }
     }
 
+    /// Insert a new subnode into this node, and return a mutable reference to it
+    ///
+    /// It must be possible to clone the node name, and turn it into a String.
+    /// This returns a mutable reference to the Node, because I assume in most cases
+    /// the desire would be to immediately start modifying the node that has just been
+    /// created.
     pub fn new_node<S>(&mut self, name: S) -> &mut Self
         where S: Into<String> + Clone {
 
@@ -92,16 +99,19 @@ impl Node {
         self.subnodes.get_mut(&key).unwrap()
     }
 
+    /// Get a reference to the specified subnode
     pub fn get_node<S>(&self, name: S) -> Option<&Self> where S: Into<String> {
         self.subnodes.get(&name.into())
     }
 
+    /// Get a mutable reference to the specified subnode
     pub fn get_node_mut<S>(&mut self, name: S) -> Option<&mut Self>
         where S: Into<String> {
 
         self.subnodes.get_mut(&name.into())
     }
 
+    /// Get a reference to the specified attribute value
     pub fn get_attr<S>(&self, name: S) -> Option<&Value> where S: Into<String> {
         self.attributes.get(&name.into())
     }
