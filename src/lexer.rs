@@ -318,6 +318,63 @@ impl Lexer {
         }
     }
 
+    fn parse_raw_string(&mut self) -> Option<LexResult> {
+        let mut buffer = String::new();
+        let mut quote_closed = false;
+        let mut quote_length = 1;
+        assert!(self.pop_next() == Some('r')); // otherwise something wrong has happened
+        let (quote_char, closed_char) = match self.pop_next() {
+            Some('/') => ('/', '/'),
+            Some('|') => ('|', '|'),
+            Some('#') => ('#', '#'),
+            Some('$') => ('$', '$'),
+            Some('%') => ('%', '%'),
+            Some('(') => ('(', ')'), // N.B. special
+            Some('"') => ('"', '"'),
+            Some('\'') => ('\'', '\''),
+            Some(ch) => unreachable!("{:?} should not be a quote char", ch),
+            None => { return None; },
+        };
+
+        while let Some(next_char) = self.pop_next() {
+            if next_char == quote_char {
+                quote_length += 1;
+            } else {
+                self.ret_next(next_char);
+                break;
+            }
+        }
+
+        while let Some(next_char) = self.pop_next() {
+            if next_char == closed_char {
+                let mut close_quote_length = 1;
+                while let Some(next_char) = self.pop_next() {
+                    if next_char == closed_char {
+                        close_quote_length += 1;
+                        if close_quote_length == quote_length {
+                            quote_closed = true;
+                            break;
+                        }
+                    } else {
+                        for _ in 0..(close_quote_length) {
+                            buffer.push(closed_char);
+                        }
+                        buffer.push(next_char);
+                        break;
+                    }
+                }
+
+                if quote_closed {
+                    break;
+                }
+            } else {
+                buffer.push(next_char);
+            }
+        }
+
+        Some(Ok(LexToken::StringLit(buffer)))
+    }
+
     fn parse_ident_escaped(&mut self) -> Option<LexResult> {
         let mut buffer = String::new();
         let mut quote_closed = false;
@@ -475,35 +532,62 @@ impl Iterator for Lexer {
         self.token_start = self.position.clone();
 
         if let Some(next_char) = self.pop_next() {
-            if next_char == '{' {
-                Some(Ok(LexToken::OpenBrace))
-            } else if next_char == '}' {
-                Some(Ok(LexToken::CloseBrace))
-            } else if next_char == '[' {
-                Some(Ok(LexToken::OpenBracket))
-            } else if next_char == ']' {
-                Some(Ok(LexToken::CloseBracket))
-            } else if next_char == ',' {
-                Some(Ok(LexToken::Comma))
-            } else if next_char == '!' {
-                Some(Ok(LexToken::Bang))
-            } else if next_char == ':' {
-                Some(Ok(LexToken::Colon))
-            } else if next_char == '`' {
-                self.ret_next(next_char);
-                self.parse_ident_escaped()
-            } else if ident_head(next_char) {
-                self.ret_next(next_char);
-                self.parse_ident()
-            } else if next_char.is_digit(10) || ['+', '-', '.'].contains(&next_char) {
-                self.ret_next(next_char);
-                self.parse_numeric()
-            } else if next_char == '\"' || next_char == '\'' {
-                self.ret_next(next_char);
-                self.parse_string()
-            } else {
-                Some(Err(LexError::UnrecognisedCharError(next_char)))
+            if next_char == 'r' {
+                if let Some(after) = self.pop_next() {
+                    match after {
+                        '/' | '|' | '#' | '"' | '\'' | '$' | '%' | '(' => {
+                            self.ret_next(after);
+                            self.ret_next(next_char);
+                            return self.parse_raw_string();
+                        },
+                        _ => {
+                            self.ret_next(after);
+                            self.ret_next(next_char);
+                        }
+                    }
+                } else {
+                    self.ret_next(next_char);
+                }
             }
+            if next_char == '{' {
+                return Some(Ok(LexToken::OpenBrace));
+            }
+            if next_char == '}' {
+                return Some(Ok(LexToken::CloseBrace));
+            }
+            if next_char == '[' {
+                return Some(Ok(LexToken::OpenBracket));
+            }
+            if next_char == ']' {
+                return Some(Ok(LexToken::CloseBracket));
+            }
+            if next_char == ',' {
+                return Some(Ok(LexToken::Comma));
+            }
+            if next_char == '!' {
+                return Some(Ok(LexToken::Bang));
+            }
+            if next_char == ':' {
+                return Some(Ok(LexToken::Colon));
+            }
+            if next_char == '`' {
+                self.ret_next(next_char);
+                return self.parse_ident_escaped();
+            }
+            if ident_head(next_char) {
+                self.ret_next(next_char);
+                return self.parse_ident();
+            }
+            if next_char.is_digit(10) || ['+', '-', '.'].contains(&next_char) {
+                self.ret_next(next_char);
+                return self.parse_numeric();
+            }
+            if next_char == '\"' || next_char == '\'' {
+                self.ret_next(next_char);
+                return self.parse_string();
+            }
+
+            Some(Err(LexError::UnrecognisedCharError(next_char)))
         } else {
             None
         }
@@ -766,5 +850,24 @@ mod tests {
             Err(LexError::UnclosedStringError) => assert!(true),
             Err(_) => panic!("wrong error raised"),
         }
+    }
+
+    #[test]
+    fn parse_raw_string() {
+        let mut lexer = Lexer::lex(Cursor::new("r/hello/".as_bytes()));
+        assert_eq!(lexer.parse_raw_string().unwrap().unwrap(),
+            LexToken::StringLit("hello".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("r////hello////".as_bytes()));
+        assert_eq!(lexer.parse_raw_string().unwrap().unwrap(),
+            LexToken::StringLit("hello".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("r////hel///lo////".as_bytes()));
+        assert_eq!(lexer.parse_raw_string().unwrap().unwrap(),
+            LexToken::StringLit("hel///lo".to_string()));
+
+        let mut lexer = Lexer::lex(Cursor::new("r((/hel/(((()//lo))".as_bytes()));
+        assert_eq!(lexer.parse_raw_string().unwrap().unwrap(),
+            LexToken::StringLit("/hel/(((()//lo".to_string()));
     }
 }
