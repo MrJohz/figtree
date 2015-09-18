@@ -164,9 +164,7 @@ configuration files.
 - Documentation/tests
     + Module level documentation
     + Documentation for parser/lexer enums
-    + Tests directory for example uses
 - Lexing:
-    + Raw stringlits (`/|[(%$#` chars)
     + Better unicode escapes
     + Other booleans?
 - Parsing:
