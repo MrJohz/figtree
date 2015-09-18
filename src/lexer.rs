@@ -602,7 +602,9 @@ mod tests {
 
     #[test]
     fn iterator() {
-        let cursor = Cursor::new("ident { } [ ! ] : , 34 3.5 'str' true".as_bytes());
+        let cursor = Cursor::new(
+            "ident { } [ ! ] : , 34 3.5 'str' true r/raw string/"
+        .as_bytes());
         let mut lexer = Lexer::lex(cursor);
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("ident".to_string()));
@@ -645,6 +647,11 @@ mod tests {
             LexToken::Identifier("true".to_string()));
         assert_eq!(lexer.token_start, MutablePosition::at(0, 33));
         assert_eq!(lexer.position, MutablePosition::at(0, 37));
+        assert_eq!(lexer.next().unwrap().unwrap(),
+            LexToken::StringLit("raw string".to_string()));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 38));
+        assert_eq!(lexer.position, MutablePosition::at(0, 51));
+        assert!(lexer.next().is_none());
     }
 
     #[test]
