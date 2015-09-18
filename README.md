@@ -168,10 +168,10 @@ configuration files.
 - Fixes
     + Convert `panic!()`s into something more appropriate like `unreachable!()`s.
     + Lack of documentation
-    + Lack of API for getting values out of `types::Value`
 - Features
     + Tests directory for example uses
     + Write files out
+    + Sugar functions for manipulating configuration structs
     + Integrate serialisation/deserialisation
     + Advanced position details - show beginning and end of token
     + Pull parser API?

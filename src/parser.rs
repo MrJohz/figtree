@@ -291,12 +291,12 @@ impl Parser {
     }
 
     fn yield_state(&mut self, state: ParseEvent) -> Option<ParseResult> {
-        Some(Ok((state, self.lexer.token_start.clone())))
+        Some(Ok((state, self.lexer.token_start.clone().freeze())))
     }
 
     fn yield_error(&mut self, error: ParseError) -> Option<ParseResult> {
         self.ended = true;
-        Some(Err((error, self.lexer.token_start.clone())))
+        Some(Err((error, self.lexer.token_start.clone().freeze())))
     }
 }
 

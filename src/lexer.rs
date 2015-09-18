@@ -4,7 +4,7 @@ use std::char::from_u32;
 use std::str::FromStr;
 
 use utils::{CharReader, ident_head, ident_body};
-use position::Position;
+use position::MutablePosition;
 
 type LexResult = Result<LexToken, LexError>;
 
@@ -33,8 +33,8 @@ pub enum LexError {
 }
 
 pub struct Lexer {
-    pub token_start: Position,
-    pub position: Position,
+    pub token_start: MutablePosition,
+    pub position: MutablePosition,
     input: CharReader<io::BufReader<Box<Read>>>,
     stored_next: Vec<char>,
     errored: bool,
@@ -45,8 +45,8 @@ impl Lexer {
     pub fn lex<R: Read + 'static>(reader: R) -> Self {
         Lexer {
             input: CharReader::new(io::BufReader::new(Box::new(reader))),
-            token_start: Position::new(),
-            position: Position::new(),
+            token_start: MutablePosition::new(),
+            position: MutablePosition::new(),
             stored_next: Vec::new(),
             errored: false,
             peeked_next: None,
@@ -513,7 +513,7 @@ impl Iterator for Lexer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::position::Position;
+    use super::super::position::MutablePosition;
     use std::io::Cursor;
 
     #[test]
@@ -522,45 +522,45 @@ mod tests {
         let mut lexer = Lexer::lex(cursor);
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("ident".to_string()));
-        assert_eq!(lexer.token_start, Position::at(0, 0));
-        assert_eq!(lexer.position, Position::at(0, 5));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 0));
+        assert_eq!(lexer.position, MutablePosition::at(0, 5));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBrace);
-        assert_eq!(lexer.token_start, Position::at(0, 6));
-        assert_eq!(lexer.position, Position::at(0, 7));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 6));
+        assert_eq!(lexer.position, MutablePosition::at(0, 7));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBrace);
-        assert_eq!(lexer.token_start, Position::at(0, 8));
-        assert_eq!(lexer.position, Position::at(0, 9));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 8));
+        assert_eq!(lexer.position, MutablePosition::at(0, 9));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::OpenBracket);
-        assert_eq!(lexer.token_start, Position::at(0, 10));
-        assert_eq!(lexer.position, Position::at(0, 11));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 10));
+        assert_eq!(lexer.position, MutablePosition::at(0, 11));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Bang);
-        assert_eq!(lexer.token_start, Position::at(0, 12));
-        assert_eq!(lexer.position, Position::at(0, 13));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 12));
+        assert_eq!(lexer.position, MutablePosition::at(0, 13));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::CloseBracket);
-        assert_eq!(lexer.token_start, Position::at(0, 14));
-        assert_eq!(lexer.position, Position::at(0, 15));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 14));
+        assert_eq!(lexer.position, MutablePosition::at(0, 15));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Colon);
-        assert_eq!(lexer.token_start, Position::at(0, 16));
-        assert_eq!(lexer.position, Position::at(0, 17));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 16));
+        assert_eq!(lexer.position, MutablePosition::at(0, 17));
         assert_eq!(lexer.next().unwrap().unwrap(), LexToken::Comma);
-        assert_eq!(lexer.token_start, Position::at(0, 18));
-        assert_eq!(lexer.position, Position::at(0, 19));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 18));
+        assert_eq!(lexer.position, MutablePosition::at(0, 19));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::IntegerLit(34));
-        assert_eq!(lexer.token_start, Position::at(0, 20));
-        assert_eq!(lexer.position, Position::at(0, 22));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 20));
+        assert_eq!(lexer.position, MutablePosition::at(0, 22));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::FloatLit(3.5));
-        assert_eq!(lexer.token_start, Position::at(0, 23));
-        assert_eq!(lexer.position, Position::at(0, 26));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 23));
+        assert_eq!(lexer.position, MutablePosition::at(0, 26));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::StringLit("str".to_string()));
-        assert_eq!(lexer.token_start, Position::at(0, 27));
-        assert_eq!(lexer.position, Position::at(0, 32));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 27));
+        assert_eq!(lexer.position, MutablePosition::at(0, 32));
         assert_eq!(lexer.next().unwrap().unwrap(),
             LexToken::Identifier("true".to_string()));
-        assert_eq!(lexer.token_start, Position::at(0, 33));
-        assert_eq!(lexer.position, Position::at(0, 37));
+        assert_eq!(lexer.token_start, MutablePosition::at(0, 33));
+        assert_eq!(lexer.position, MutablePosition::at(0, 37));
     }
 
     #[test]

@@ -1,7 +1,14 @@
 use std::collections::HashMap;
 use super::parser::ParsedValue;
 
+/// A type to represent a figtree dict
+///
+/// Maps string keys to `Value`s.  Can contain any `Value`, including container types
 pub type Dict = HashMap<String, Value>;
+
+/// A type to represent a figtree list
+///
+/// Contains ordered `Value`s.  Can contain any `Value`, including container types
 pub type List = Vec<Value>;
 
 /// A type to represent a figtree value
@@ -14,6 +21,7 @@ pub type List = Vec<Value>;
 /// # use figtree::types::Value;
 /// let value = Value::new_string("hello!");
 /// assert!(value.get_str() == Some("hello!"));
+/// assert!(value.get_int() == None);
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Str(String),
@@ -65,6 +73,54 @@ impl Value {
     pub fn get_str(&self) -> Option<&str> {
         match *self {
             Value::Str(ref s) => Some(&s),
+            _ => None
+        }
+    }
+
+    /// Extract the contained value if it is an integer
+    pub fn get_int(&self) -> Option<i64> {
+        match *self {
+            Value::Int(s) => Some(s),
+            _ => None
+        }
+    }
+
+    /// Extract the contained value if it is a float
+    pub fn get_float(&self) -> Option<f64> {
+        match *self {
+            Value::Float(s) => Some(s),
+            _ => None
+        }
+    }
+
+    /// Extract the contained value if it is a boolean
+    pub fn get_bool(&self) -> Option<bool> {
+        match *self {
+            Value::Bool(s) => Some(s),
+            _ => None
+        }
+    }
+
+    /// Extract the contained (&str) value if it is an identifier
+    pub fn get_ident(&self) -> Option<&str> {
+        match *self {
+            Value::Ident(ref s) => Some(&s),
+            _ => None
+        }
+    }
+
+    /// Extract the contained value if it is a dict
+    pub fn get_dict(&self) -> Option<&Dict> {
+        match *self {
+            Value::Dict(ref s) => Some(s),
+            _ => None
+        }
+    }
+
+    /// Extract the contained value as a slice if it is a list
+    pub fn get_list(&self) -> Option<&[Value]> {
+        match *self {
+            Value::List(ref s) => Some(&s),
             _ => None
         }
     }
