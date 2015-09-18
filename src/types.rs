@@ -4,6 +4,16 @@ use super::parser::ParsedValue;
 pub type Dict = HashMap<String, Value>;
 pub type List = Vec<Value>;
 
+/// A type to represent a figtree value
+///
+/// Generally, this is obtained by getting the value of an attribute on a Node, although
+/// there are also methods to construct all the kinds of this type.
+///
+/// # Examples
+/// ```
+/// # use figtree::types::Value;
+/// let value = Value::new_string("hello!");
+/// assert!(value.get_str() == Some("hello!"));
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Str(String),
@@ -16,22 +26,27 @@ pub enum Value {
 }
 
 impl Value {
+    /// Construct a new string `Value`.
     pub fn new_string<S>(s: S) -> Self where S: Into<String> {
         Value::Str(s.into())
     }
 
+    /// Construct a new identifier `Value`.
     pub fn new_ident<S>(s: S) -> Self where S: Into<String> {
         Value::Ident(s.into())
     }
 
+    /// Construct a new integer `Value`.
     pub fn new_int(s: i64) -> Self {
         Value::Int(s)
     }
 
+    /// Construct a new float `Value`.
     pub fn new_float(s: f64) -> Self {
         Value::Float(s)
     }
 
+    /// Construct a new boolean `Value`.
     pub fn new_bool(s: bool) -> Self {
         Value::Bool(s)
     }
@@ -43,6 +58,14 @@ impl Value {
             ParsedValue::Bool(b) => Self::new_bool(b),
             ParsedValue::Int(i) => Self::new_int(i),
             ParsedValue::Ident(i) => Self::new_ident(i),
+        }
+    }
+
+    /// Extract the contained value if it is a string.
+    pub fn get_str(&self) -> Option<&str> {
+        match *self {
+            Value::Str(ref s) => Some(&s),
+            _ => None
         }
     }
 }
@@ -86,11 +109,6 @@ impl Node {
     }
 
     /// Insert a new subnode into this node, and return a mutable reference to it
-    ///
-    /// It must be possible to clone the node name, and turn it into a String.
-    /// This returns a mutable reference to the Node, because I assume in most cases
-    /// the desire would be to immediately start modifying the node that has just been
-    /// created.
     pub fn new_node<S>(&mut self, name: S) -> &mut Self
         where S: Into<String> + Clone {
 
@@ -116,6 +134,7 @@ impl Node {
         self.attributes.get(&name.into())
     }
 
+    /// Get a mutable reference to the specified attribute value
     pub fn get_attr_mut<S>(&mut self, name: S) -> Option<&mut Value>
         where S: Into<String> {
 
