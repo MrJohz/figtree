@@ -161,18 +161,19 @@ configuration files.
 
 
 ## TODO:
+- Documentation/tests
+    + Module level documentation
+    + Documentation for parser/lexer enums
+    + Tests directory for example uses
 - Lexing:
     + Raw stringlits (`/|[(%$#` chars)
     + Better unicode escapes
     + Other booleans?
-- Fixes
-    + Convert `panic!()`s into something more appropriate like `unreachable!()`s.
-    + Lack of documentation
-- Features
-    + Tests directory for example uses
+- Parsing:
+    + Advanced position details - show beginning and end of token
+    + Interpolation via `$reference` nodes?
+- API Features
     + Write files out
     + Sugar functions for manipulating configuration structs
     + Integrate serialisation/deserialisation
-    + Advanced position details - show beginning and end of token
     + Pull parser API?
-    + Interpolation via `$reference` nodes?
