@@ -164,6 +164,9 @@ configuration files.
 - Lexing:
     + Better unicode escapes
     + Other booleans?
+    + No null value!  Need a null value!  What was I thinking?
+    + Better way to deal with multiline strings
+    + Should it be possible to write negative hexadecimal numbers?
 - Parsing:
     + Advanced position details - show beginning and end of token
     + Interpolation via `$reference` nodes?
@@ -172,3 +175,5 @@ configuration files.
     + Sugar functions for manipulating configuration structs
     + Integrate serialisation/deserialisation
     + Pull parser API?
+- Testing
+    + Repeated nodes/attributes with the same name/key
