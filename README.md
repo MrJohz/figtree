@@ -161,9 +161,6 @@ configuration files.
 
 
 ## TODO:
-- Documentation/tests
-    + Module level documentation
-    + Documentation for parser/lexer enums
 - Lexing:
     + Better unicode escapes
     + Other booleans?

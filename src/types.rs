@@ -1,3 +1,21 @@
+//! A collection of types that define a figtree document.
+//!
+//! These types are re-exported in the main module because there aren't too many of
+//! them, and because they're useful when testing equality or building figtree documents
+//! from scratch.  The `types` module is also made available to allow explicit namespaced
+//! imports of these types.
+//!
+//! # Examples
+//! ```
+//! # use figtree::types::*;
+//!
+//! let mut doc = Document::new();
+//! let mut node = doc.new_node("node_name");
+//! node.attributes.insert(
+//!     "key".to_string(),
+//!     Value::new_int(4032));
+//! ```
+
 use std::collections::HashMap;
 use super::parser::ParsedValue;
 

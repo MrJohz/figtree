@@ -8,6 +8,7 @@ use position::MutablePosition;
 
 type LexResult = Result<LexToken, LexError>;
 
+/// A enum representing different kinds of lexed event
 #[derive(Debug, PartialEq, Clone)]
 pub enum LexToken {
     OpenBrace, CloseBrace,
@@ -19,6 +20,9 @@ pub enum LexToken {
     FloatLit(f64),
 }
 
+/// An enum representing different kinds of lexing errors
+///
+/// May be referenced in a `ParseError` if the parsing failed due to a lexical error
 #[derive(Debug, PartialEq)]
 pub enum LexError {
     UnclosedCommentError,

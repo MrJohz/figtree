@@ -24,6 +24,7 @@ pub enum ParseEvent {
     DictEnd,
 }
 
+/// An enum representing an error that occurs during parsing.
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
     LexError(LexError),
