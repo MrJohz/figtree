@@ -327,15 +327,14 @@ impl Lexer {
         let mut quote_closed = false;
         let mut quote_length = 1;
         assert!(self.pop_next() == Some('r')); // otherwise something wrong has happened
-        let (quote_char, closed_char) = match self.pop_next() {
-            Some('/') => ('/', '/'),
-            Some('|') => ('|', '|'),
-            Some('#') => ('#', '#'),
-            Some('$') => ('$', '$'),
-            Some('%') => ('%', '%'),
-            Some('(') => ('(', ')'), // N.B. special
-            Some('"') => ('"', '"'),
-            Some('\'') => ('\'', '\''),
+        let quote_char = match self.pop_next() {
+            Some('/') => '/',
+            Some('|') => '|',
+            Some('#') => '#',
+            Some('$') => '$',
+            Some('%') => '%',
+            Some('"') => '"',
+            Some('\'') => '\'',
             Some(ch) => unreachable!("{:?} should not be a quote char", ch),
             None => { return None; },
         };
@@ -350,10 +349,10 @@ impl Lexer {
         }
 
         while let Some(next_char) = self.pop_next() {
-            if next_char == closed_char {
+            if next_char == quote_char {
                 let mut close_quote_length = 1;
                 while let Some(next_char) = self.pop_next() {
-                    if next_char == closed_char {
+                    if next_char == quote_char {
                         close_quote_length += 1;
                         if close_quote_length == quote_length {
                             quote_closed = true;
@@ -361,7 +360,7 @@ impl Lexer {
                         }
                     } else {
                         for _ in 0..(close_quote_length) {
-                            buffer.push(closed_char);
+                            buffer.push(quote_char);
                         }
                         buffer.push(next_char);
                         break;
@@ -539,7 +538,7 @@ impl Iterator for Lexer {
             if next_char == 'r' {
                 if let Some(after) = self.pop_next() {
                     match after {
-                        '/' | '|' | '#' | '"' | '\'' | '$' | '%' | '(' => {
+                        '/' | '|' | '#' | '"' | '\'' | '$' | '%' => {
                             self.ret_next(after);
                             self.ret_next(next_char);
                             return self.parse_raw_string();
@@ -876,9 +875,5 @@ mod tests {
         let mut lexer = Lexer::lex(Cursor::new("r////hel///lo////".as_bytes()));
         assert_eq!(lexer.parse_raw_string().unwrap().unwrap(),
             LexToken::StringLit("hel///lo".to_string()));
-
-        let mut lexer = Lexer::lex(Cursor::new("r((/hel/(((()//lo))".as_bytes()));
-        assert_eq!(lexer.parse_raw_string().unwrap().unwrap(),
-            LexToken::StringLit("/hel/(((()//lo".to_string()));
     }
 }
