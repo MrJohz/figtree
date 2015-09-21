@@ -223,13 +223,13 @@ impl Lexer {
     fn parse_numeric(&mut self) -> Option<LexResult> {
         if let Some(next_char) = self.pop_next() {
             if let Some(after) = self.pop_next() {
-                if next_char == '0' && ['d', 'D'].contains(&after) {
+                if next_char == '0' && after == 'd' {
                     self.parse_int(10)
-                } else if next_char == '0' && ['x', 'X'].contains(&after)  {
+                } else if next_char == '0' && after == 'x'  {
                     self.parse_int(16)
-                } else if next_char == '0' && ['o', 'O'].contains(&after) {
+                } else if next_char == '0' && after == 'o' {
                     self.parse_int(8)
-                } else if next_char == '0' && ['b', 'B'].contains(&after) {
+                } else if next_char == '0' && after == 'b' {
                     self.parse_int(2)
                 } else {
                     self.ret_next(after);      // put back the two characters we popped
@@ -775,15 +775,7 @@ mod tests {
         assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
             LexToken::IntegerLit(10));
 
-        let mut lexer = Lexer::lex(Cursor::new("0D10".as_bytes()));
-        assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
-            LexToken::IntegerLit(10));
-
         let mut lexer = Lexer::lex(Cursor::new("0b10".as_bytes()));
-        assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
-            LexToken::IntegerLit(2));
-
-        let mut lexer = Lexer::lex(Cursor::new("0B10".as_bytes()));
         assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
             LexToken::IntegerLit(2));
 
@@ -791,15 +783,7 @@ mod tests {
         assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
             LexToken::IntegerLit(16));
 
-        let mut lexer = Lexer::lex(Cursor::new("0X10".as_bytes()));
-        assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
-            LexToken::IntegerLit(16));
-
         let mut lexer = Lexer::lex(Cursor::new("0o10".as_bytes()));
-        assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
-            LexToken::IntegerLit(8));
-
-        let mut lexer = Lexer::lex(Cursor::new("0O10".as_bytes()));
         assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
             LexToken::IntegerLit(8));
 
