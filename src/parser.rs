@@ -30,6 +30,7 @@ pub enum ParseError {
     LexError(LexError),
     UnexpectedEndOfFile,
     UnexpectedToken(LexToken),
+    RepeatedNode(String),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -48,6 +49,7 @@ pub struct Parser {
     context: ContextStack,
     ended: bool,
     lexer: Lexer,
+    peeked_result: Option<ParseResult>,
 }
 
 impl Parser {
@@ -56,7 +58,21 @@ impl Parser {
             context: ContextStack::new(),
             ended: false,
             lexer: lexer,
+            peeked_result: None,
         }
+    }
+
+    pub fn peek(&mut self) -> Option<&ParseResult> {
+        if self.peeked_result.is_some() {
+            self.peeked_result.as_ref()
+        } else {
+            self.peeked_result = self.next();
+            self.peeked_result.as_ref()
+        }
+    }
+
+    pub fn lex_position(&self) -> Position {
+        self.lexer.token_start.clone().freeze()
     }
 
     fn lex_error(&mut self, error: LexError) -> Option<ParseResult> {
@@ -292,12 +308,12 @@ impl Parser {
     }
 
     fn yield_state(&mut self, state: ParseEvent) -> Option<ParseResult> {
-        Some(Ok((state, self.lexer.token_start.clone().freeze())))
+        Some(Ok((state, self.lex_position())))
     }
 
     fn yield_error(&mut self, error: ParseError) -> Option<ParseResult> {
         self.ended = true;
-        Some(Err((error, self.lexer.token_start.clone().freeze())))
+        Some(Err((error, self.lex_position())))
     }
 }
 
@@ -306,6 +322,7 @@ impl Iterator for Parser {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.ended { return None; }
+        if self.peeked_result.is_some() { return self.peeked_result.take(); }
 
         let current_state = self.context.pop();
         match current_state {

@@ -1,7 +1,6 @@
 use std::io::{Cursor, Error};
 use std::fs::File;
 use std::io::prelude::*;
-use std::iter::Peekable;
 
 use super::parser::{Parser, ParseEvent, ParseError};
 use super::lexer::Lexer;
@@ -25,7 +24,7 @@ use super::types::*;
 /// assert!(config.nodes.len() == 1);
 /// ```
 pub struct Figtree {
-    parser: Peekable<Parser>,
+    parser: Parser,
 }
 
 impl Figtree {
@@ -45,7 +44,7 @@ impl Figtree {
     /// ```
     pub fn new<T: Read + 'static>(input: T) -> Self {
         Figtree {
-            parser: Parser::parse(Lexer::lex(input)).peekable()
+            parser: Parser::parse(Lexer::lex(input))
         }
     }
 
@@ -139,6 +138,9 @@ impl Figtree {
         loop {
             match self.parser.next() {
                 Some(Ok((ParseEvent::NodeStart(name), _))) => {
+                    if doc.nodes.contains_key(&name) {
+                        return Some((ParseError::RepeatedNode(name), self.parser.lex_position()));
+                    }
                     if let Some(err) = self.parse_node(doc.new_node(name)) {
                         return Some(err);
                     }
@@ -160,6 +162,9 @@ impl Figtree {
             match self.parser.next() {
                 Some(Ok((ParseEvent::NodeEnd, _))) => { return None; },
                 Some(Ok((ParseEvent::NodeStart(name), _))) => {
+                    if node.subnodes.contains_key(&name) {
+                        return Some((ParseError::RepeatedNode(name), self.parser.lex_position()));
+                    }
                     if let Some(err) = self.parse_node(node.new_node(name)) {
                         return Some(err);
                     }

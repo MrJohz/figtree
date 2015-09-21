@@ -174,5 +174,3 @@ configuration files.
     + Sugar functions for manipulating configuration structs
     + Integrate serialisation/deserialisation
     + Pull parser API?
-- Testing
-    + Repeated nodes/attributes with the same name/ke
