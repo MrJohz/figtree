@@ -133,6 +133,18 @@ impl Lexer {
             }
         }
 
+        if buffer.len() == 0 {
+            self.ret_next(match base {
+                2 => 'b',
+                8 => 'o',
+                10 => 'd',
+                16 => 'x',
+                _ => unreachable!("parse_int called with incorrect base"),
+            });
+
+            return Some(Ok(LexToken::IntegerLit(0)));
+        }
+
         Some(Ok(LexToken::IntegerLit(i64::from_str_radix(&buffer, base).unwrap())))
     }
 
@@ -806,6 +818,10 @@ mod tests {
         let mut lexer = Lexer::lex(Cursor::new("1_0__5___".as_bytes()));
         assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
             LexToken::IntegerLit(105));
+
+        let mut lexer = Lexer::lex(Cursor::new("0x".as_bytes()));
+        assert_eq!(lexer.parse_numeric().unwrap().unwrap(),
+            LexToken::IntegerLit(0));
     }
 
     #[test]
