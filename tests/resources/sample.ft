@@ -3,6 +3,7 @@ test {
     "list": ["value 1", "value 2", 3, 4.0, "value 5"],
 
     subtest {
+        "nonexistent": null,
         "dict": {
             "seven": 7,
             "4.0": 4.0,

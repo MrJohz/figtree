@@ -8,6 +8,7 @@ pub enum ParsedValue {
     Float(f64),
     Bool(bool),
     Ident(String),
+    Null,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -214,15 +215,14 @@ impl Parser {
             }
             Some(Ok(LexToken::Identifier(ident))) => {
                 match &*ident {
-                    "true" => {
-                        self.yield_state(ParseEvent::Value(ParsedValue::Bool(true)))
-                    },
-                    "false" => {
-                        self.yield_state(ParseEvent::Value(ParsedValue::Bool(false)))
-                    },
-                    _ => {
-                        self.yield_error(ParseError::UnexpectedToken(LexToken::Identifier(ident)))
-                    }
+                    "true" =>
+                        self.yield_state(ParseEvent::Value(ParsedValue::Bool(true))),
+                    "false" =>
+                        self.yield_state(ParseEvent::Value(ParsedValue::Bool(false))),
+                    "null" =>
+                        self.yield_state(ParseEvent::Value(ParsedValue::Null)),
+                    _ =>
+                        self.yield_error(ParseError::UnexpectedToken(LexToken::Identifier(ident))),
                 }
             },
             Some(Ok(LexToken::Bang)) => {
@@ -466,6 +466,16 @@ mod tests {
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Ident("my_ident".to_string())));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
+        assert!(parser.next().is_none());
+
+        let file = Cursor::new("node { 'key': null }".as_bytes());
+        let mut parser = Parser::parse(Lexer::lex(file));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileStart);
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeStart("node".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Key("key".to_string()));
+        assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::Value(ParsedValue::Null));
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::NodeEnd);
         assert_eq!(parser.next().unwrap().unwrap().0, ParseEvent::FileEnd);
         assert!(parser.next().is_none());

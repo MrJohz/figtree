@@ -49,6 +49,7 @@ pub enum Value {
     Ident(String),
     Dict(Dict),
     List(List),
+    Null,
 }
 
 impl Value {
@@ -77,6 +78,11 @@ impl Value {
         Value::Bool(s)
     }
 
+    /// Construct a new null `Value`.
+    pub fn new_null() -> Self {
+        Value::Null
+    }
+
     pub fn from_parsed_value(val: ParsedValue) -> Self {
         match val {
             ParsedValue::Str(s) => Self::new_string(s),
@@ -84,6 +90,7 @@ impl Value {
             ParsedValue::Bool(b) => Self::new_bool(b),
             ParsedValue::Int(i) => Self::new_int(i),
             ParsedValue::Ident(i) => Self::new_ident(i),
+            ParsedValue::Null => Self::new_null(),
         }
     }
 
@@ -140,6 +147,13 @@ impl Value {
         match *self {
             Value::List(ref s) => Some(&s),
             _ => None
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        match *self {
+            Value::Null => true,
+            _ => false,
         }
     }
 }

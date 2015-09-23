@@ -56,3 +56,17 @@ fn using_dictionaries() {
         .expect("could not obtain value");
     assert_eq!(identifier, "jello_shots");
 }
+
+#[test]
+fn using_nulls() {
+    let mut figgy = Figtree::from_filename(SAMPLE).ok().expect("file does not exist");
+    let config = figgy.parse().ok().expect("parsing error occurred");
+
+    let null_node = config.get_node("test")
+        .and_then(|node| node.get_node("subtest"))
+        .and_then(|node| node.get_attr("nonexistent"))
+        .expect("attribute is not present");
+
+    assert_eq!(null_node.get_int(), None);
+    assert!(null_node.is_null());
+}
