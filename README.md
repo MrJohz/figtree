@@ -164,7 +164,6 @@ configuration files.
 - Lexing:
     + Better unicode escapes
     + Other booleans?
-    + No null value!  Need a null value!  What was I thinking?
     + Better way to deal with multiline strings
 - Parsing:
     + Advanced position details - show beginning and end of token
