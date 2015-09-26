@@ -2,6 +2,16 @@
 name = "figtree"
 version = "0.1.0"
 authors = ["Jonathan <jonathan.frere@gmail.com>"]
+license = "MIT"
+description = "Figtree is a file format for human-useable configuration"
+
+homepage = "http://www.johz.me/figtree"
+documentation = "http://www.johz.me/figtree"
+repository = "https://github.com/MrJohz/figtree"
+
+readme = "README.md"
+
+keyword = ["config", "configuration", "figtree"]
 
 [dependencies]
 matches = "0.1.*"
