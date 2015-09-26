@@ -1,4 +1,6 @@
 language: rust
+sudo: false # use container infrastructure
+
 rust:
   - stable
   - beta
@@ -13,7 +15,7 @@ after_success: |
   ## make sure we're allowed to build docs
   [ $TRAVIS_BRANCH = master ] &&  # don't build docs if not on master
   [ $TRAVIS_PULL_REQUEST = false ] && # don't build docs if this is a pull request
-  [ $TRAVIS_RUST_VERSION = master ] && # only want to build on the master rust channel
+  [ $TRAVIS_RUST_VERSION = stable ] && # only want to build on the stable rust channel
 
   ## Construct docs
   cargo doc --no-deps &&
