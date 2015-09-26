@@ -8,7 +8,7 @@ fn opening_a_file() {
     let mut figgy = Figtree::from_filename(SAMPLE).ok().expect("file does not exist");
     let config = figgy.parse().ok().expect("parsing error occurred");
 
-    assert_eq!(config.nodes.len(), 1);
+    assert_eq!(config.node_count(), 1);
 }
 
 #[test]
@@ -39,7 +39,7 @@ fn getting_subnodes() {
 
     let test_node = config.get_node("test").expect("node is not present");
     let subnode = test_node.get_node("subtest").expect("subnode is not present");
-    assert_eq!(subnode.subnodes.len(), 0);
+    assert_eq!(subnode.node_count(), 0);
 }
 
 #[test]

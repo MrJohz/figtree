@@ -10,8 +10,8 @@
 //! # use figtree::types::*;
 //!
 //! let mut doc = Document::new();
-//! let mut node = doc.new_node("node_name");
-//! node.attributes.insert(
+//! let mut node = doc.new_node_or_get("node_name");
+//! node.insert_attr(
 //!     "key".to_string(),
 //!     Value::new_int(4032));
 //! ```
@@ -162,13 +162,16 @@ impl Value {
 ///
 /// # Examples
 ///
+/// Manipulating subnodes:
+///
 /// ```
 /// use figtree::types::*;
 /// let mut node = Node::new();
-/// assert!(node.subnodes.len() == 0);  // empty
-/// assert!(node.attributes.len() == 0);
+/// assert!(node.is_empty());
+/// assert!(!node.has_nodes());
 ///
-/// node.new_node("subnode");
+/// node.new_node_or_get("subnode");
+/// assert!(node.node_count() == 1);
 ///
 /// { // appease the borrow checker
 ///     let subnode = node.get_node("subnode").expect("no such node");
@@ -177,14 +180,26 @@ impl Value {
 ///
 /// { // appease the borrow checker
 ///     let mut subnode = node.get_node_mut("subnode").expect("no such node");
-///     let sub_subnode = subnode.new_node("sub_subnode");
+///     let sub_subnode = subnode.new_node_or_get("sub_subnode");
 ///     // etc.
 /// }
 /// ```
+///
+/// Manipulating attributes
+///
+/// ```
+/// use figtree::types::*;
+/// let mut node = Node::new();
+/// assert!(node.is_empty());
+/// assert!(!node.has_attrs());
+///
+/// node.insert_attr("key", Value::new_int(5));
+/// assert!(node.attr_count() == 1);
+/// ```
 #[derive(Debug, PartialEq)]
 pub struct Node {
-    pub subnodes: HashMap<String, Node>,
-    pub attributes: HashMap<String, Value>,
+    subnodes: HashMap<String, Node>,
+    attributes: HashMap<String, Value>,
 }
 
 impl Node {
@@ -196,13 +211,30 @@ impl Node {
         }
     }
 
-    /// Insert a new subnode into this node, and return a mutable reference to it
-    pub fn new_node<S>(&mut self, name: S) -> &mut Self
-        where S: Into<String> + Clone {
+    /// Construct a new node and automatically insert it as a subnode.
+    ///
+    /// Returns a mutable reference to the new node.  If there is a subnode already
+    /// present with the given name, this method will not insert a new node and instead
+    /// just return the old node.
+    pub fn new_node_or_get<S>(&mut self, name: S) -> &mut Self where S: Into<String> {
+        self.subnodes.entry(name.into()).or_insert(Self::new())
+    }
 
-        let key = name.clone().into();
-        self.subnodes.insert(name.into(), Self::new());
-        self.subnodes.get_mut(&key).unwrap()
+    /// Inserts a node into this node as a subnode.
+    ///
+    /// If there is already a node with the given name, replace it and return the
+    /// old node.
+    pub fn insert_node<S>(&mut self, name: S, node: Node) -> Option<Node>
+        where S: Into<String> {
+
+        self.subnodes.insert(name.into(), node)
+    }
+
+    /// Remove a subnode from this node.
+    ///
+    /// Returns the deleted node.
+    pub fn delete_node<S>(&mut self, name: S) -> Option<Node> where S: Into<String> {
+        self.subnodes.remove(&name.into())
     }
 
     /// Get a reference to the specified subnode
@@ -217,6 +249,24 @@ impl Node {
         self.subnodes.get_mut(&name.into())
     }
 
+    /// Insert a new value into this node.
+    ///
+    /// If there is already a value with the given name, replace it and return the old
+    /// value.
+    pub fn insert_attr<S>(&mut self, name: S, value: Value) -> Option<Value>
+        where S: Into<String> {
+
+        self.attributes.insert(name.into(), value)
+    }
+
+
+    /// Remove an attribute from this node.
+    ///
+    /// Returns the deleted value.
+    pub fn delete_attr<S>(&mut self, name: S) -> Option<Value> where S: Into<String> {
+        self.attributes.remove(&name.into())
+    }
+
     /// Get a reference to the specified attribute value
     pub fn get_attr<S>(&self, name: S) -> Option<&Value> where S: Into<String> {
         self.attributes.get(&name.into())
@@ -228,6 +278,41 @@ impl Node {
 
         self.attributes.get_mut(&name.into())
     }
+
+    /// Test if this node has no subnodes or attributes
+    pub fn is_empty(&self) -> bool {
+        self.subnodes.is_empty() && self.attributes.is_empty()
+    }
+
+    /// Test if this node has a subnode with the given name.
+    pub fn has_node(&self, name: &String) -> bool {
+        self.subnodes.contains_key(name)
+    }
+
+    /// Test if this node has any subnodes at all.
+    pub fn has_nodes(&self) -> bool {
+        !self.subnodes.is_empty()
+    }
+
+    /// Returns the number of subnodes.
+    pub fn node_count(&self) -> usize {
+        self.subnodes.len()
+    }
+
+    /// Test if this node had an attribute with the given key.
+    pub fn has_attr(&self, name: &String) -> bool {
+        self.attributes.contains_key(name)
+    }
+
+    /// Test if this node has any attributes at all.
+    pub fn has_attrs(&self) -> bool {
+        !self.attributes.is_empty()
+    }
+
+    /// Returns the number of attributes.
+    pub fn attr_count(&self) -> usize {
+        self.attributes.len()
+    }
 }
 
 /// A struct representing a parsed figtree document.
@@ -237,8 +322,10 @@ impl Node {
 /// ```
 /// use figtree::types::*;
 /// let mut doc = Document::new();
-/// doc.new_node("node name");
-/// assert!(doc.nodes.len() == 1);
+/// assert!(doc.is_empty());
+///
+/// doc.new_node_or_get("node name");
+/// assert!(doc.node_count() == 1);
 ///
 /// {   // appease the borrow checker by scoping this off
 ///     // in real code this would be unnecessary because there is no need to do
@@ -254,7 +341,7 @@ impl Node {
 /// ```
 #[derive(Debug, PartialEq)]
 pub struct Document {
-    pub nodes: HashMap<String, Node>,
+    nodes: HashMap<String, Node>,
 }
 
 impl Document {
@@ -265,18 +352,30 @@ impl Document {
         }
     }
 
-    /// Insert a node into the document.
+    /// Construct a new node and insert it into the document.
     ///
-    /// It must be possible to clone the node name, and turn it into a String.
-    /// This returns a mutable reference to the Node, because I assume in most cases
-    /// the desire would be to immediately start modifying the node that has just been
-    /// created.
-    pub fn new_node<S>(&mut self, name: S) -> &mut Node
-        where S: Into<String> + Clone {
+    /// Returns a mutable reference to the new node.  If there is a node already
+    /// present with the given name, this method will not insert a new node and instead
+    /// just return the old node.
+    pub fn new_node_or_get<S>(&mut self, name: S) -> &mut Node where S: Into<String> {
+        self.nodes.entry(name.into()).or_insert(Node::new())
+    }
 
-        let key = name.clone().into();
-        self.nodes.insert(name.into(), Node::new());
-        self.nodes.get_mut(&key).unwrap()
+    /// Inserts a node into the document.
+    ///
+    /// If there is already a node with the given name, replace it and return the
+    /// old node.
+    pub fn insert_node<S>(&mut self, name: S, node: Node) -> Option<Node>
+        where S: Into<String> {
+
+        self.nodes.insert(name.into(), node)
+    }
+
+    /// Remove a node from the document.
+    ///
+    /// Returns the deleted node, if it exists.
+    pub fn delete_node<S>(&mut self, name: S) -> Option<Node> where S: Into<String> {
+        self.nodes.remove(&name.into())
     }
 
     /// Get a reference to a specified node
@@ -295,6 +394,26 @@ impl Document {
     /// about the internal structure of the node.
     pub fn get_node_mut<S>(&mut self, name: S) -> Option<&mut Node> where S: Into<String> {
         self.nodes.get_mut(&name.into())
+    }
+
+    /// Test if the document is empty - if it has no nodes.
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    /// Test if the document has a given node.
+    pub fn has_node(&self, name: &String) -> bool {
+        self.nodes.contains_key(name)
+    }
+
+    /// Test if the document has any nodes.
+    pub fn has_nodes(&self) -> bool {
+        !self.nodes.is_empty()
+    }
+
+    /// Returns the number of nodes in the document.
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
     }
 }
 
@@ -330,20 +449,70 @@ mod tests {
     }
 
     #[test]
-    fn node_tests() {
+    fn node_with_subnodes() {
         let mut node = Node::new();
-        node.new_node("subnode_name").new_node("secondary_subnode");
+        assert!(node.is_empty());
+        assert!(!node.has_nodes());
+        assert!(!node.has_attrs());
+        assert_eq!(node.node_count(), 0);
+        assert_eq!(node.attr_count(), 0);
+
+        node.new_node_or_get("subnode_name").new_node_or_get("secondary_subnode");
         assert_eq!(
             node.get_node("subnode_name")
                 .expect("couldn't find subnode_name")
                 .get_node("secondary_subnode"),
             Some(&Node::new()));
+        assert!(!node.is_empty());
+        assert!(node.has_nodes());
+        assert!(!node.has_attrs());
+        assert_eq!(node.node_count(), 1);
+        assert_eq!(node.attr_count(), 0);
+
+        let subnode = node.delete_node("subnode_name").expect("node should have existed");
+        assert!(node.is_empty());
+        assert!(!node.has_nodes());
+        assert!(!node.has_attrs());
+        assert_eq!(node.node_count(), 0);
+        assert_eq!(node.attr_count(), 0);
+
+        node.insert_node("new subnode", subnode);
+        assert!(!node.is_empty());
+        assert!(node.has_nodes());
+        assert!(!node.has_attrs());
+        assert_eq!(node.node_count(), 1);
+        assert_eq!(node.attr_count(), 0);
+    }
+
+    #[test]
+    fn node_with_attributes() {
+        let mut node = Node::new();
+        assert!(node.is_empty());
+        assert!(!node.has_nodes());
+        assert!(!node.has_attrs());
+        assert_eq!(node.node_count(), 0);
+        assert_eq!(node.attr_count(), 0);
+
+        assert_eq!(node.insert_attr("key", Value::new_int(6)), None);
+        assert!(!node.is_empty());
+        assert!(!node.has_nodes());
+        assert!(node.has_attrs());
+        assert_eq!(node.node_count(), 0);
+        assert_eq!(node.attr_count(), 1);
+
+        assert_eq!(node.delete_attr("key"), Some(Value::new_int(6)));
+        assert!(node.is_empty());
+        assert!(!node.has_nodes());
+        assert!(!node.has_attrs());
+        assert_eq!(node.node_count(), 0);
+        assert_eq!(node.attr_count(), 0);
+
     }
 
     #[test]
     fn document_tests() {
         let mut doc = Document::new();
-        doc.new_node("node_name").new_node("subnode");
+        doc.new_node_or_get("node_name").new_node_or_get("subnode");
         assert_eq!(
             doc.get_node("node_name")
                 .expect("couldn't find node_name")

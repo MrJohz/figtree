@@ -21,7 +21,7 @@ use super::types::*;
 /// use figtree::Figtree;
 /// let mut figgy = Figtree::from_string("mydoc { 'key': 'val' }");
 /// let config = figgy.parse().ok().expect("Invalid document parsed");
-/// assert!(config.nodes.len() == 1);
+/// assert!(config.node_count() == 1);
 /// ```
 pub struct Figtree {
     parser: Parser,
@@ -99,7 +99,7 @@ impl Figtree {
     /// # use figtree::Figtree;
     /// let mut figgy = Figtree::from_string("doc { 'key': 'value' }");
     /// let config = figgy.parse().ok().expect("failed to parse");
-    /// assert!(config.nodes.len() == 1);
+    /// assert!(config.node_count() == 1);
     /// ```
     ///
     /// Parsing unsuccessfully
@@ -138,10 +138,10 @@ impl Figtree {
         loop {
             match self.parser.next() {
                 Some(Ok((ParseEvent::NodeStart(name), _))) => {
-                    if doc.nodes.contains_key(&name) {
+                    if doc.has_node(&name) {
                         return Some((ParseError::RepeatedNode(name), self.parser.lex_position()));
                     }
-                    if let Some(err) = self.parse_node(doc.new_node(name)) {
+                    if let Some(err) = self.parse_node(doc.new_node_or_get(name)) {
                         return Some(err);
                     }
                 },
@@ -162,16 +162,16 @@ impl Figtree {
             match self.parser.next() {
                 Some(Ok((ParseEvent::NodeEnd, _))) => { return None; },
                 Some(Ok((ParseEvent::NodeStart(name), _))) => {
-                    if node.subnodes.contains_key(&name) {
+                    if node.has_node(&name) {
                         return Some((ParseError::RepeatedNode(name), self.parser.lex_position()));
                     }
-                    if let Some(err) = self.parse_node(node.new_node(name)) {
+                    if let Some(err) = self.parse_node(node.new_node_or_get(name)) {
                         return Some(err);
                     }
                 },
                 Some(Ok((ParseEvent::Key(key), _))) => {
                     match self.parse_value() {
-                        Ok(value) => { node.attributes.insert(key, value); },
+                        Ok(value) => { node.insert_attr(key, value); },
                         Err(err) => { return Some(err); }
                     }
                 }
@@ -249,14 +249,14 @@ mod tests {
     fn construct_empty_file() {
         let mut figgy = Figtree::from_string("");
         let config = figgy.parse().unwrap();
-        assert_eq!(config.nodes.len(), 0);
+        assert!(config.is_empty());
     }
 
     #[test]
     fn construct_empty_nodes_in_file() {
         let mut figgy = Figtree::from_string("node {} hello { nested {} }");
         let config = figgy.parse().unwrap();
-        assert_eq!(config.nodes.len(), 2);
+        assert_eq!(config.node_count(), 2);
     }
 
     #[test]

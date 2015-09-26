@@ -11,7 +11,7 @@ repository = "https://github.com/MrJohz/figtree"
 
 readme = "README.md"
 
-keyword = ["config", "configuration", "figtree"]
+keywords = ["config", "configuration", "figtree"]
 
 [dependencies]
 matches = "0.1.*"
