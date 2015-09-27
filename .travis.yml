@@ -12,18 +12,30 @@ matrix:
 before_script:
   - "export PATH=$HOME/.local/bin:$PATH"
 
-after_success: |
-  # doc-building script
+after_success:
+  - |
+    # doc-building script
 
-  ## make sure we're allowed to build docs
-  [ $TRAVIS_BRANCH = master ] &&  # don't build docs if not on master
-  [ $TRAVIS_PULL_REQUEST = false ] && # don't build docs if this is a pull request
-  [ $TRAVIS_RUST_VERSION = stable ] && # only want to build on the stable rust channel
+    ## make sure we're allowed to build docs
+    [ $TRAVIS_BRANCH = master ] &&  # don't build docs if not on master
+    [ $TRAVIS_PULL_REQUEST = false ] && # don't build docs if this is a pull request
+    [ $TRAVIS_RUST_VERSION = stable ] && # only want to build on the stable rust channel
 
-  ## Construct docs
-  cargo doc --no-deps &&
-  echo "<meta http-equiv=refresh content=0;url=`echo $TRAVIS_REPO_SLUG | cut -d '/' -f 2`/index.html>" > target/doc/index.html &&
-  # (that redirects the index page to the beginning of the docs, because rustdoc is weird)
-  pip install ghp-import --user `whoami` &&
-  ghp-import -n target/doc &&
-  git push -fq https://${GH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
+    ## Construct docs
+    cargo doc --no-deps &&
+    echo "<meta http-equiv=refresh content=0;url=`echo $TRAVIS_REPO_SLUG | cut -d '/' -f 2`/index.html>" > target/doc/index.html &&
+    # (that redirects the index page to the beginning of the docs, because rustdoc is weird)
+    pip install ghp-import --user `whoami` &&
+    ghp-import -n target/doc &&
+    git push -fq https://${GH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
+  - |
+    # coveralls scripts
+
+    ## get hold of kcov
+    wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
+    tar xzf master.tar.gz && mkdir kcov-master/build && cd kcov-master/build &&
+    && cmake .. && make && cd ../../ && PATH="./kcov-master/build/src/:$PATH" &&
+
+    ## build coverage
+    for f in `find target/debug/ -executable -type f`; do
+      kcov --coveralls-id=$TRAVIS_JOB_ID --verify target/kcov $f; done;
