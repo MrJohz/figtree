@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/MrJohz/figtree.svg?branch=master)](https://travis-ci.org/MrJohz/figtree)
+[![Coverage Status](https://coveralls.io/repos/MrJohz/figtree/badge.svg?branch=master&service=github)](https://coveralls.io/github/MrJohz/figtree?branch=master)
 
 # Figtree - the noded config file
 
