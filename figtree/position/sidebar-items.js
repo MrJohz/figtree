@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Position","Represents a position in the file"]]});

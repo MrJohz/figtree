@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Value` enum in crate `figtree`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Value">
+
+    <title>figtree::types::Value - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'><a href='../index.html'>figtree</a>::<wbr><a href='index.html'>types</a></p><script>window.sidebarCurrent = {name: 'Value', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content enum">
+<h1 class='fqn'><span class='in-band'>Enum <a href='../index.html'>figtree</a>::<wbr><a href='index.html'>types</a>::<wbr><a class='enum' href=''>Value</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-6891' class='srclink' href='../../src/figtree/types.rs.html#45-54' title='goto source code'>[src]</a></span></h1>
+<pre class='rust enum'>pub enum Value {
+    Str(<a class='struct' href='http://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>),
+    Int(<a href='http://doc.rust-lang.org/nightly/std/primitive.i64.html'>i64</a>),
+    Float(<a href='http://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>),
+    Bool(<a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>),
+    Ident(<a class='struct' href='http://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>),
+    Dict(<a class='type' href='../../figtree/types/type.Dict.html' title='figtree::types::Dict'>Dict</a>),
+    List(<a class='type' href='../../figtree/types/type.List.html' title='figtree::types::List'>List</a>),
+    Null,
+}</pre><div class='docblock'><p>A type to represent a figtree value</p>
+
+<p>Generally, this is obtained by getting the value of an attribute on a Node, although
+there are also methods to construct all the kinds of this type.</p>
+
+<h1 id="examples" class='section-header'><a
+                           href="#examples">Examples</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>value</span> <span class='op'>=</span> <span class='ident'>Value</span>::<span class='ident'>new_string</span>(<span class='string'>&quot;hello!&quot;</span>);
+<span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>value</span>.<span class='ident'>get_str</span>() <span class='op'>==</span> <span class='prelude-val'>Some</span>(<span class='string'>&quot;hello!&quot;</span>));
+<span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>value</span>.<span class='ident'>get_int</span>() <span class='op'>==</span> <span class='prelude-val'>None</span>);</pre>
+</div><h2 class='variants'>Variants</h2>
+<table><tr><td id='variant.Str'><code>Str</code></td><td></td></tr><tr><td id='variant.Int'><code>Int</code></td><td></td></tr><tr><td id='variant.Float'><code>Float</code></td><td></td></tr><tr><td id='variant.Bool'><code>Bool</code></td><td></td></tr><tr><td id='variant.Ident'><code>Ident</code></td><td></td></tr><tr><td id='variant.Dict'><code>Dict</code></td><td></td></tr><tr><td id='variant.List'><code>List</code></td><td></td></tr><tr><td id='variant.Null'><code>Null</code></td><td></td></tr></table><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl <a class='enum' href='../../figtree/types/enum.Value.html' title='figtree::types::Value'>Value</a></code></h3><div class='impl-items'><h4 id='method.new_string' class='method'><code>fn <a href='#method.new_string' class='fnname'>new_string</a>&lt;S&gt;(s: S) -&gt; Self <span class='where'>where S: <a class='trait' href='http://doc.rust-lang.org/nightly/core/convert/trait.Into.html' title='core::convert::Into'>Into</a>&lt;<a class='struct' href='http://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>&gt;</span></code></h4>
+<div class='docblock'><p>Construct a new string <code>Value</code>.</p>
+</div><h4 id='method.new_ident' class='method'><code>fn <a href='#method.new_ident' class='fnname'>new_ident</a>&lt;S&gt;(s: S) -&gt; Self <span class='where'>where S: <a class='trait' href='http://doc.rust-lang.org/nightly/core/convert/trait.Into.html' title='core::convert::Into'>Into</a>&lt;<a class='struct' href='http://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>&gt;</span></code></h4>
+<div class='docblock'><p>Construct a new identifier <code>Value</code>.</p>
+</div><h4 id='method.new_int' class='method'><code>fn <a href='#method.new_int' class='fnname'>new_int</a>(s: <a href='http://doc.rust-lang.org/nightly/std/primitive.i64.html'>i64</a>) -&gt; Self</code></h4>
+<div class='docblock'><p>Construct a new integer <code>Value</code>.</p>
+</div><h4 id='method.new_float' class='method'><code>fn <a href='#method.new_float' class='fnname'>new_float</a>(s: <a href='http://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; Self</code></h4>
+<div class='docblock'><p>Construct a new float <code>Value</code>.</p>
+</div><h4 id='method.new_bool' class='method'><code>fn <a href='#method.new_bool' class='fnname'>new_bool</a>(s: <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>) -&gt; Self</code></h4>
+<div class='docblock'><p>Construct a new boolean <code>Value</code>.</p>
+</div><h4 id='method.new_null' class='method'><code>fn <a href='#method.new_null' class='fnname'>new_null</a>() -&gt; Self</code></h4>
+<div class='docblock'><p>Construct a new null <code>Value</code>.</p>
+</div><h4 id='method.from_parsed_value' class='method'><code>fn <a href='#method.from_parsed_value' class='fnname'>from_parsed_value</a>(val: ParsedValue) -&gt; Self</code></h4>
+<h4 id='method.get_str' class='method'><code>fn <a href='#method.get_str' class='fnname'>get_str</a>(&amp;self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a href='http://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt;</code></h4>
+<div class='docblock'><p>Extract the contained value if it is a string.</p>
+</div><h4 id='method.get_int' class='method'><code>fn <a href='#method.get_int' class='fnname'>get_int</a>(&amp;self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a href='http://doc.rust-lang.org/nightly/std/primitive.i64.html'>i64</a>&gt;</code></h4>
+<div class='docblock'><p>Extract the contained value if it is an integer</p>
+</div><h4 id='method.get_float' class='method'><code>fn <a href='#method.get_float' class='fnname'>get_float</a>(&amp;self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a href='http://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>&gt;</code></h4>
+<div class='docblock'><p>Extract the contained value if it is a float</p>
+</div><h4 id='method.get_bool' class='method'><code>fn <a href='#method.get_bool' class='fnname'>get_bool</a>(&amp;self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>&gt;</code></h4>
+<div class='docblock'><p>Extract the contained value if it is a boolean</p>
+</div><h4 id='method.get_ident' class='method'><code>fn <a href='#method.get_ident' class='fnname'>get_ident</a>(&amp;self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a href='http://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt;</code></h4>
+<div class='docblock'><p>Extract the contained (&amp;str) value if it is an identifier</p>
+</div><h4 id='method.get_dict' class='method'><code>fn <a href='#method.get_dict' class='fnname'>get_dict</a>(&amp;self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a class='type' href='../../figtree/types/type.Dict.html' title='figtree::types::Dict'>Dict</a>&gt;</code></h4>
+<div class='docblock'><p>Extract the contained value if it is a dict</p>
+</div><h4 id='method.get_list' class='method'><code>fn <a href='#method.get_list' class='fnname'>get_list</a>(&amp;self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a href='http://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='enum' href='../../figtree/types/enum.Value.html' title='figtree::types::Value'>Value</a><a href='http://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>&gt;</code></h4>
+<div class='docblock'><p>Extract the contained value as a slice if it is a list</p>
+</div><h4 id='method.is_null' class='method'><code>fn <a href='#method.is_null' class='fnname'>is_null</a>(&amp;self) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 id='derived_implementations'>Derived Implementations </h3><h3 class='impl'><code>impl <a class='trait' href='http://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html' title='core::cmp::PartialEq'>PartialEq</a> for <a class='enum' href='../../figtree/types/enum.Value.html' title='figtree::types::Value'>Value</a></code></h3><div class='impl-items'><h4 id='method.eq' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.eq' class='fnname'>eq</a>(&amp;self, __arg_0: &amp;<a class='enum' href='../../figtree/types/enum.Value.html' title='figtree::types::Value'>Value</a>) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.ne' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, __arg_0: &amp;<a class='enum' href='../../figtree/types/enum.Value.html' title='figtree::types::Value'>Value</a>) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+</div><h3 class='impl'><code>impl <a class='trait' href='http://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='enum' href='../../figtree/types/enum.Value.html' title='figtree::types::Value'>Value</a></code></h3><div class='impl-items'><h4 id='method.fmt' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#method.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class='struct' href='http://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='http://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div>
+            <div class="shortcuts">
+                <h1>Keyboard Shortcuts</h1>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h1>Search Tricks</h1>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>typedef</code> (or
+                    <code>tdef</code>).
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "figtree";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script async src="../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Figtree` struct in crate `figtree`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Figtree">
+
+    <title>figtree::Figtree - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'><a href='index.html'>figtree</a></p><script>window.sidebarCurrent = {name: 'Figtree', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>figtree</a>::<wbr><a class='struct' href=''>Figtree</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-8405' class='srclink' href='../src/figtree/figtree.rs.html#26-28' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Figtree {
+    // some fields omitted
+}</pre><div class='docblock'><p>Opens, parses, and reads figtree files.</p>
+
+<p>The <code>Figtree</code> struct is essentially a wrapper around the internal pull-parser API
+that consumes the loaded document and transforms it into a <code>Document</code> struct.
+In future, it will also provide its own pull-parser API to allow for streamed parsing
+of documents and other advanced processing techniques.</p>
+
+<h1 id="examples" class='section-header'><a
+                           href="#examples">Examples</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>figtree</span>::<span class='ident'>Figtree</span>;
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>figgy</span> <span class='op'>=</span> <span class='ident'>Figtree</span>::<span class='ident'>from_string</span>(<span class='string'>&quot;mydoc { &#39;key&#39;: &#39;val&#39; }&quot;</span>);
+<span class='kw'>let</span> <span class='ident'>config</span> <span class='op'>=</span> <span class='ident'>figgy</span>.<span class='ident'>parse</span>().<span class='ident'>ok</span>().<span class='ident'>expect</span>(<span class='string'>&quot;Invalid document parsed&quot;</span>);
+<span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>config</span>.<span class='ident'>node_count</span>() <span class='op'>==</span> <span class='number'>1</span>);</pre>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl <a class='struct' href='../figtree/struct.Figtree.html' title='figtree::Figtree'>Figtree</a></code></h3><div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>&lt;T: <a class='trait' href='http://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a> + 'static&gt;(input: T) -&gt; Self</code></h4>
+<div class='docblock'><p>Constructs a <code>Figtree</code> instance from a generic <code>Read</code> implementor.</p>
+
+<p>The <code>Read</code>er <em>must</em> also have a <code>&#39;static</code> lifetime - that is, it cannot maintain
+references to unowned data.  This shouldn&#39;t be much of a problem in most cases,
+but it may catch you out.  This is the low-level method that does the hard work
+of constructing a Figtree instance - you may want to use either <code>from_filename</code>
+or <code>from_string</code> depending on your needs.</p>
+
+<h1 id="examples" class='section-header'><a
+                           href="#examples">Examples</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>figgy</span> <span class='op'>=</span> <span class='ident'>Figtree</span>::<span class='ident'>new</span>(<span class='ident'>Cursor</span>::<span class='ident'>new</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;my_string&quot;</span>).<span class='ident'>into_bytes</span>()));</pre>
+</div><h4 id='method.from_filename' class='method'><code>fn <a href='#method.from_filename' class='fnname'>from_filename</a>&lt;T&gt;(input: T) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../figtree/struct.Figtree.html' title='figtree::Figtree'>Figtree</a>, <a class='struct' href='http://doc.rust-lang.org/nightly/std/io/error/struct.Error.html' title='std::io::error::Error'>Error</a>&gt; <span class='where'>where T: <a class='trait' href='http://doc.rust-lang.org/nightly/core/convert/trait.Into.html' title='core::convert::Into'>Into</a>&lt;<a class='struct' href='http://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>&gt;</span></code></h4>
+<div class='docblock'><p>Constructs a <code>Figtree</code> instance from a local file.</p>
+
+<p>Use this over directly calling <code>Figtree::new</code> unless you need control over the
+file-opening process.</p>
+
+<h1 id="failures" class='section-header'><a
+                           href="#failures">Failures</a></h1>
+<p>This function will fail under the same circumstances that <code>File::open</code> will fail,
+producing the same error (<code>std::io::Error</code>).</p>
+</div><h4 id='method.from_string' class='method'><code>fn <a href='#method.from_string' class='fnname'>from_string</a>&lt;T&gt;(input: T) -&gt; <a class='struct' href='../figtree/struct.Figtree.html' title='figtree::Figtree'>Figtree</a> <span class='where'>where T: <a class='trait' href='http://doc.rust-lang.org/nightly/core/convert/trait.Into.html' title='core::convert::Into'>Into</a>&lt;<a class='struct' href='http://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>&gt;</span></code></h4>
+<div class='docblock'><p>Constructs a <code>Figtree</code> instance from a &amp;str or String.</p>
+
+<p>Use this over directly calling <code>Figtree::new()</code> unless you need control over the
+file-opening process.</p>
+
+<p>Generally, using <code>from_filename</code> is better than loading the file into memory and
+parsing it as a string.  That said, there may be circumstances where it is you
+have a string, in which case this is better than writing the string to a file
+and reading from that.</p>
+
+<p>Both an &amp;str or a String can be used - or indeed anything that implements the
+<code>Into&lt;String&gt;</code> trait.</p>
+
+<h1 id="examples" class='section-header'><a
+                           href="#examples">Examples</a></h1><pre class='rust rust-example-rendered'>
+<span class='comment'>// N.B. syntax doesn&#39;t matter at this point as the file isn&#39;t parsed until</span>
+<span class='comment'>// the parse method is called.</span>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>figgy</span> <span class='op'>=</span> <span class='ident'>Figtree</span>::<span class='ident'>from_string</span>(<span class='string'>&quot;input&quot;</span>);</pre>
+</div><h4 id='method.parse' class='method'><code>fn <a href='#method.parse' class='fnname'>parse</a>(&amp;mut self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../figtree/types/struct.Document.html' title='figtree::types::Document'>Document</a>, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(<a class='enum' href='../figtree/enum.ParseError.html' title='figtree::ParseError'>ParseError</a>, <a class='struct' href='../figtree/struct.Position.html' title='figtree::Position'>Position</a>)</a>&gt;</code></h4>
+<div class='docblock'><p>Parse the document stored in this <code>Figtree</code> instance into a <code>Document</code>.</p>
+
+<h1 id="failures" class='section-header'><a
+                           href="#failures">Failures</a></h1>
+<p>If a parsing error occurs, a <code>(ParseError, Position)</code> tuple is returned, where
+the <code>ParseError</code> contains the kind of error that happened, and the <code>Position</code>
+points to the position the lexer was in at the beginning of the last (erroring)
+token.</p>
+
+<h1 id="examples" class='section-header'><a
+                           href="#examples">Examples</a></h1>
+<p>Parsing successfully:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>figgy</span> <span class='op'>=</span> <span class='ident'>Figtree</span>::<span class='ident'>from_string</span>(<span class='string'>&quot;doc { &#39;key&#39;: &#39;value&#39; }&quot;</span>);
+<span class='kw'>let</span> <span class='ident'>config</span> <span class='op'>=</span> <span class='ident'>figgy</span>.<span class='ident'>parse</span>().<span class='ident'>ok</span>().<span class='ident'>expect</span>(<span class='string'>&quot;failed to parse&quot;</span>);
+<span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>config</span>.<span class='ident'>node_count</span>() <span class='op'>==</span> <span class='number'>1</span>);</pre>
+
+<p>Parsing unsuccessfully</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>figgy</span> <span class='op'>=</span> <span class='ident'>Figtree</span>::<span class='ident'>from_string</span>(<span class='string'>&quot;invalid document&quot;</span>);
+<span class='kw'>let</span> <span class='ident'>error</span> <span class='op'>=</span> <span class='ident'>figgy</span>.<span class='ident'>parse</span>().<span class='ident'>err</span>().<span class='ident'>expect</span>(<span class='string'>&quot;parsing should have failed&quot;</span>);
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(
+    <span class='ident'>error</span>.<span class='number'>0</span>,
+    <span class='ident'>ParseError</span>::<span class='ident'>UnexpectedToken</span>(<span class='ident'>LexToken</span>::<span class='ident'>Identifier</span>(<span class='string'>&quot;document&quot;</span>.<span class='ident'>to_string</span>())));
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(
+    <span class='ident'>error</span>.<span class='number'>1</span>,
+    <span class='ident'>Position</span>::<span class='ident'>at</span>(<span class='number'>0</span>, <span class='number'>8</span>));</pre>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div>
+            <div class="shortcuts">
+                <h1>Keyboard Shortcuts</h1>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h1>Search Tricks</h1>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>typedef</code> (or
+                    <code>tdef</code>).
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "figtree";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Value","A type to represent a figtree value"]],"struct":[["Document","A struct representing a parsed figtree document."],["Node","A struct representing an individual node in a parsed document"]],"type":[["Dict","A type to represent a figtree dict"],["List","A type to represent a figtree list"]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Figtree","Opens, parses, and reads figtree files."]]});
