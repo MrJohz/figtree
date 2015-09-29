@@ -17,6 +17,7 @@
 //! ```
 
 use std::collections::HashMap;
+use std::collections::hash_map::Iter;
 use super::parser::ParsedValue;
 
 /// A type to represent a figtree dict
@@ -249,6 +250,11 @@ impl Node {
         self.subnodes.get_mut(&name.into())
     }
 
+    /// Get an iterable of (&name, &node) pairs
+    pub fn iter_nodes(&self) -> Iter<String, Node> {
+        self.subnodes.iter()
+    }
+
     /// Insert a new value into this node.
     ///
     /// If there is already a value with the given name, replace it and return the old
@@ -277,6 +283,11 @@ impl Node {
         where S: Into<String> {
 
         self.attributes.get_mut(&name.into())
+    }
+
+    /// Get an iterable of (&name, &attribute) pairs
+    pub fn iter_attrs(&self) -> Iter<String, Value> {
+        self.attributes.iter()
     }
 
     /// Test if this node has no subnodes or attributes
@@ -396,6 +407,11 @@ impl Document {
         self.nodes.get_mut(&name.into())
     }
 
+    /// Get an iterable of (&name, &node) pairs
+    pub fn iter_nodes(&self) -> Iter<String, Node> {
+        self.nodes.iter()
+    }
+
     /// Test if the document is empty - if it has no nodes.
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
@@ -482,6 +498,15 @@ mod tests {
         assert!(!node.has_attrs());
         assert_eq!(node.node_count(), 1);
         assert_eq!(node.attr_count(), 0);
+
+        let mut iterable = node
+            .get_node("new subnode").expect("missing subnode 'new subnode'")
+            .iter_nodes();
+        assert_eq!(iterable.len(), 1);
+        assert_eq!(
+            iterable.next(),
+            Some((&("secondary_subnode".to_string()), &Node::new())));
+        assert_eq!(iterable.next(), None);
     }
 
     #[test]
@@ -507,6 +532,19 @@ mod tests {
         assert_eq!(node.node_count(), 0);
         assert_eq!(node.attr_count(), 0);
 
+        assert_eq!(node.insert_attr("key", Value::new_int(7)), None);
+        assert!(!node.is_empty());
+        assert!(!node.has_nodes());
+        assert!(node.has_attrs());
+        assert_eq!(node.node_count(), 0);
+        assert_eq!(node.attr_count(), 1);
+
+        let mut iterable = node.iter_attrs();
+        assert_eq!(iterable.len(), 1);
+        assert_eq!(
+            iterable.next(),
+            Some((&("key".to_string()), &Value::new_int(7))));
+        assert_eq!(iterable.next(), None);
     }
 
     #[test]
@@ -518,5 +556,14 @@ mod tests {
                 .expect("couldn't find node_name")
                 .get_node("subnode"),
             Some(&Node::new()));
+
+        let mut iterable = doc
+            .get_node("node_name").expect("missing subnode 'node_name'")
+            .iter_nodes();
+        assert_eq!(iterable.len(), 1);
+        assert_eq!(
+            iterable.next(),
+            Some((&("subnode".to_string()), &Node::new())));
+        assert_eq!(iterable.next(), None);
     }
 }
