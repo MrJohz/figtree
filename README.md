@@ -172,6 +172,5 @@ configuration files.
 - API Features
     + Write files out
     + Sugar functions for manipulating configuration structs
-    + Iterate over configuration structs
     + Integrate serialisation/deserialisation
     + Pull parser API?

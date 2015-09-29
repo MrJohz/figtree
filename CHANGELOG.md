@@ -1,3 +1,19 @@
+# 0.2.2 (2015-09-29)
+
+### API additions
+- `types::Node`
+    + `iter_nodes`
+    + `iter_attrs`
+- `types::Document`
+    + `iter_nodes`
+
+# 0.2.1 (2015-09-26)
+
+Re-release of v0.2.1 with some more version numbers updated and without messing up
+git tag-iness.
+
+***
+
 # 0.2.0 (2015-09-26)
 
 ### Breaking changes

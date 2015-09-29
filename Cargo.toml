@@ -1,6 +1,6 @@
 [package]
 name = "figtree"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Jonathan <jonathan.frere@gmail.com>"]
 license = "MIT"
 description = "Figtree is a file format for human-useable configuration"
